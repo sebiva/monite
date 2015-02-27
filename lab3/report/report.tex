@@ -1,0 +1,102 @@
+% Sebastian Ivarsson %
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+%%\usepackage{showframe}
+%\usepackage[parfill]{parskip} %% New line instead of indentation for paragraphs
+
+\usepackage{geometry}
+\geometry{  a4paper,
+            total={210mm,297mm},
+            left=25mm,
+            right=25mm,
+            top=25mm,
+            bottom=35mm,
+        }
+
+\hypersetup{    pdftitle={AFP Assignment 3},%
+                pdfauthor={Sebastian Ivarsson, John Martinsson},%
+                pdfborder={0 0 0},%
+            }
+
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage[parfill]{parskip}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\usepackage{amssymb}
+\usepackage{dsfont}
+
+% Table
+\usepackage{tabularx}
+\usepackage{tikz}
+%\tikzset{every picture/.style={remember picture}}
+
+\renewcommand\tabularxcolumn[1]{m{#1}}
+\newcolumntype{M}{>{\centering\arraybackslash}m{1cm}}
+
+\newcommand\tikzmark[2]{%
+    \tikz[remember picture,baseline]
+    \node[inner sep=2pt,outersep=0] (#1){#2};%
+    }
+
+\newcommand\link[2]{%
+    \begin{tikzpicture}[remember picture, overlay, >=stealth, shift={(0,0)}]
+        \draw[->] (#1) to (#2);
+    \end{tikzpicture}%
+    }
+
+% Strikeout
+\usepackage[normalem]{ulem}
+
+\usepackage{algpseudocode} % Pseudocode
+\usepackage{amsthm} % Theorems
+
+\newtheorem{myclaim}{Claim}[section]
+\newtheorem{mytheorem}{Theorem}[section]
+\newtheorem{mydef}{Definition}
+
+\begin{document}
+
+
+
+% Settings %
+\pagestyle{fancy}
+\fancyhead[L]{Advanced Functional Programming\\TDA342\\20150301}
+\fancyhead[R]{Sebastian Ivarsson\\John Martinsson\\Fire: group 13}
+
+\renewcommand{\headrulewidth}{0pt} \setlength{\headsep}{30pt}
+\setlength{\headheight}{30pt}
+%% %\addtolength{\voffset}{-50pt}
+%% %\addtolength{\textheight}{50pt}
+%% \setlength{\marginparsep}{0pt}
+%% \setlength{\marginparwidth}{0pt}
+%% \addtolength{\textwidth}{90pt}
+%% \addtolength{\hoffset}{-50pt}
+% \Settings %
+
+\title{Assignment 3}
+\author{Sebastian Ivarsson, John Martinsson}
+\maketitle
+\thispagestyle{fancy}
+
+
+\section{Part I}
+
+\iffalse % Comment out
+
+\section{Part II}
+
+\subsection{Task 1 - Writing code}
+
+\subsection{Task 2 - Documentation}
+
+\fi %/Comment
+
+\end{document}

@@ -91,7 +91,7 @@
 For this assignment, we have chosen the package ‘haskeline’. Haskeline is used
 to provide a more advanced means of getting input from the user than using the
 standard ‘getLine’ function in Haskell. It provides functionality similar to
-that of the GNU readline library for C, used in many linux applications. We
+that of the GNU 'readline' library for C, used in many linux applications. We
 think haskeline is an interesting package as it provides a very easy way of
 getting a nice input interface for your haskell command line applications.
 
@@ -99,10 +99,10 @@ Our idea is to implement a simple shell in haskell using this library along with
 the process library to pass on the calls to the system binaries. In order to
 make it a bit more interesting, we thought it would be fun to add some basic
 scripting functionality to the shell (as in bash/zsh). Since the project is so
-limited, this scripting language would be very limited. The things we have
+short, this scripting language would have to be very limited. The things we have
 planned are:
 
-Variables using let expressions for example:
+Variables using let expressions, for example:
 \begin{verbatim}
   let $x = ls -la in x | wc; cd ..; x
 \end{verbatim}
@@ -123,7 +123,7 @@ command, but also for the whole session:
 List comprehensions over lists of output values from another command:
 
 \begin{verbatim}
-  [ echo $x | $x <- ls]
+  [ echo $x | $x <- ls ]
 \end{verbatim}
 
 Which would correspond to (in zsh):
@@ -145,7 +145,7 @@ Which would be interpreted / evaluated as:
 \end{verbatim}
 
 In order to write such a shell application, we would need to write a parser for
-the user input. Luckily, the package bnfc makes it easy to generate a parser
+the user input. Luckily, the package 'bnfc' makes it easy to generate a parser
 automatically from a specified grammar, and by having a very restricted set of
 features it should not be too hard to write those rules.
 
@@ -167,7 +167,7 @@ syntax of our language, as well as the semantics when evaluating it.
 
 \textbf{Types}: Writing the code for this project will inevitably include writing our own
 types, and since our shell will no doubt have to be at least in the IO monad
-(and the State monad), we will use monad transformers to construct it, also, the
+(and the State monad), we will use monad transformers to construct it. Also, the
 abstract syntax will be an algebraic datatype.  The haskeline library uses quite
 a big stack of monad transformers (mostly ReaderT). If functions are to be
 implemented in our shell language, we might need to use a GADT to model the
@@ -187,10 +187,10 @@ a try, but, should we realise early that this is not feasible within the limited
 time-frame of this course, we will instead go with the TAs recommendation and
 focus on the haskeline library itself.
 
-\section{Part II}
+%\section{Part II}
 
-\subsection{Task 1 - Writing code}
+%\subsection{Task 1 - Writing code}
 
-\subsection{Task 2 - Documentation}
+%\subsection{Task 2 - Documentation}
 
 \end{document}

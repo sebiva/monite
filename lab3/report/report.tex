@@ -102,7 +102,7 @@ scripting functionality to the shell (as in bash/zsh). Since the project is so
 limited, this scripting language would be very limited. The things we have
 planned are:
 
-Variables using let expressions.  for example:
+Variables using let expressions for example:
 \begin{verbatim}
   let $x = ls -la in x | wc; cd ..; x
 \end{verbatim}
@@ -171,7 +171,7 @@ types, and since our shell will no doubt have to be at least in the IO monad
 abstract syntax will be an algebraic datatype.  The haskeline library uses quite
 a big stack of monad transformers (mostly ReaderT). If functions are to be
 implemented in our shell language, we might need to use a GADT to model the
-expressions. (?)
+expressions.
 
 \textbf{Spec / Testing}: Ideally, we would like to also create  a proper testsuite
 (preferably using quickCheck) for our program, but as time will be very limited,

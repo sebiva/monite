@@ -12,14 +12,18 @@ coercions Exp 4 ;
 LExp. ListEl  ::= Exp ;
 separator ListEl "," ;
 
+CText.    Cmd4 ::= [Text] ;
+CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
+COut.     Cmd2 ::= Cmd2 ">" Cmd3 ;
+CIn.      Cmd1 ::= Cmd1 "<" Cmd2 ;
+coercions Cmd 4 ;
 
-CCmd.     Cmd ::= [Text] ;
 
 TLit.    Text ::= Lit ;
 TVar.    Text ::= Var ;
 separator nonempty Text "" ;
 {-token Lit (char - ('[' | ']') (char - ('[' | ']'))*) ;-}
-token Lit (char - ["{}$;:\t\n "] (char - ["{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
+token Lit (char - ["()[]<>|{}$;:\t\n "] (char - ["()[]<>|{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
 token Var ('$' (letter | digit | '_')*) ;
 {-token Var (letter (digit | '_' | letter)*) ;-}
 

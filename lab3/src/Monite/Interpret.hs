@@ -20,15 +20,18 @@ import Control.Monad.IO.Class ( liftIO, MonadIO )
 import Data.List (intersperse)
 import qualified Data.Map as M
 
+-- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
                                             (ExceptT MoniteErr IO) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadState Env)
 
+-- | Monite shell environment, keep track of path and variables
 data Env = Env {
   vars :: M.Map Var String,
   path :: FilePath
 }
 
+-- | Monite error
 data MoniteErr = Err {
   errPath :: FilePath,
   errCmd  :: String,
@@ -54,6 +57,7 @@ interpret s = do
     Bad err -> do
       putStrLn err
 
+-- | An empty environment
 emptyEnv :: Env
 emptyEnv = Env M.empty "." -- -- TODO: $HOME? / Conf : 2015-03-02 - 17:28:51 (John)
 
@@ -61,6 +65,7 @@ emptyEnv = Env M.empty "." -- -- TODO: $HOME? / Conf : 2015-03-02 - 17:28:51 (Jo
 eval :: Program -> MoniteM ()
 eval (PProg exps) = mapM_ evalExp exps
 
+-- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> MoniteM ()
 evalExp e = case e of
   (EComp e1 v e2)   -> undefined
@@ -72,7 +77,7 @@ evalExp e = case e of
     liftIO $ waitForProcess p
     return ()
 
-
+-- | Evaluate the used command -- TODO: Implement pipe, out, in : 2015-03-02 - 17:51:18 (John)
 evalCmd :: Cmd -> MoniteM ([String]) -- String for testing
 evalCmd c = case c of
   (CText ts)        -> return $ concatText ts
@@ -80,23 +85,8 @@ evalCmd c = case c of
   (COut c1 c2)      -> undefined
   (CIn c1 c2)       -> undefined
 
+-- | Convert a list of text to a list of string
 concatText :: [Text] -> [String]
 concatText ts = map get ts
   where get (TLit (Lit s)) = s
         get (TVar (Var s)) = s
-{-data ListEl =-}
-   {-LExp Exp-}
-  {-deriving (Eq,Ord,Show,Read)-}
-
-{-data Cmd =-}
-   {-CText [Text]-}
- {-| CPipe Cmd Cmd-}
- {-| COut Cmd Cmd-}
- {-| CIn Cmd Cmd-}
-  {-deriving (Eq,Ord,Show,Read)-}
-
-{-data Text =-}
-   {-TLit Lit-}
- {-| TVar Var-}
-  {-deriving (Eq,Ord,Show,Read)-}
-

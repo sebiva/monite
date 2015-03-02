@@ -8,6 +8,6 @@ clean:
 	-rm -f Grammar/Doc.ps
 
 distclean: clean
-	-rm -f Grammar/Doc.* Grammar/Lex.* Grammar/Par.* Grammar/Layout.* Grammar/Skel.* Grammar/Print.* Grammar/Test.* Grammar/Abs.* Grammar/Test Grammar/ErrM.* Grammar/SharedString.* Grammar/ComposOp.* Grammar/Grammar.dtd Grammar/XML.* Makefile*
+	-rm -f Grammar/Doc.* Grammar/Lex.* Grammar/Par.* Grammar/Layout.* Grammar/Skel.* Grammar/Print.* Grammar/Test.* Grammar/Abs.* Grammar/Test Grammar/ErrM.* Grammar/SharedString.* Grammar/ComposOp.* Grammar/Grammar.dtd Grammar/XML.* Makefile.*
 		-rmdir -p Grammar/
 

@@ -1,3 +1,5 @@
+module Interpret where
+
 import System.Environment
 
 import Grammar.ErrM (Err (..) )
@@ -5,12 +7,7 @@ import Grammar.Par (pProgram, myLexer)
 import Grammar.Print (printTree)
 import Grammar.Abs (Exp, Lit, Cmd)
 
-
-main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-    [file] -> interpret file
+-- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> IO ()
 interpret file = do
   s <- readFile file

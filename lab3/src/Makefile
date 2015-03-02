@@ -2,7 +2,6 @@ all:
 	bnfc -d Grammar.cf
 	happy -gca Grammar/Par.y
 	alex -g Grammar/Lex.x
-	ghc --make Grammar/Test.hs -o Grammar/Test
 
 clean:
 	-rm -f Grammar/*.log Grammar/*.aux Grammar/*.hi Grammar/*.o Grammar/*.dvi

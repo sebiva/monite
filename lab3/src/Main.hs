@@ -1,7 +1,20 @@
-import System.Console.Haskeline
+module Monite (main) where
 
+import System.Environment (getArgs)
+import System.Console.Haskeline
+import Interpret (interpret)
+
+-- | Starting the shell main loop with a possible script file as argument.
 main :: IO ()
-main = runInputT defaultSettings loop
+main = do
+  args <- getArgs
+  case args of
+    [file] -> interpret file
+    _      -> getInput
+
+-- | Get input from the user
+getInput :: IO ()
+getInput = runInputT defaultSettings loop
   where
     loop :: InputT IO ()
     loop = do

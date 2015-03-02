@@ -6,5 +6,6 @@ x ;
 let $x = ls in echo ;
 [ a | $x <- c ] ;
 [ ls x | $x <- xs ] ;
+[ echo hej | $x <- ls -l ] ;
 let $x = ls in [ echo f | $f <- $x] ;
 # not working: ls -l | wc

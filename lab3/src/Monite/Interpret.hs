@@ -1,4 +1,4 @@
-module Interpret where
+module Monite.Interpret where
 
 import Grammar.ErrM (Err (..) )
 import Grammar.Par (pProgram, myLexer)

@@ -2,7 +2,7 @@ module Main (main) where
 
 import System.Environment (getArgs)
 import System.Console.Haskeline
-import Interpret (interpret)
+import Monite.Interpret (interpret)
 import Control.Monad.IO.Class (liftIO)
 
 -- | Starting the shell main loop with a possible script file as argument.

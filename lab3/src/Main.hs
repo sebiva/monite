@@ -10,19 +10,19 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [file] -> do s <- readFile file -- read the script file
-                 interpret s        -- interpret the script file
-    _      -> getInput              -- get user commands
+    [file] -> do s <- readFile file               -- read the script file
+                 interpret s                      -- interpret the script file
+    _      -> getInput                            -- get user commands
 
 -- | Get commands from the user
 getInput :: IO ()
-getInput = runInputT defaultSettings loop
+getInput = runInputT defaultSettings loop         -- input loop w/ default sets
   where
     loop :: InputT IO ()
     loop = do
-      minput <- getInputLine "% "
+      minput <- getInputLine "% "                 -- get user command
       case minput of
-        Nothing -> return ()
-        Just "quit" -> return ()
-        Just input -> do liftIO $ interpret input
+        Nothing -> return ()                      -- nothing entered
+        Just "quit" -> return ()                  -- quit the shell loop
+        Just input -> do liftIO $ interpret input -- interpret user command
                          loop

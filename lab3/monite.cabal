@@ -22,6 +22,9 @@ cabal-version:       >=1.10
 library
   -- Modules exported by the library.
   exposed-modules:     Monite.Interpret
+  -- Other modules, the grammar used to parse
+  other-modules:       Grammar.Par, Grammar.ErrM, Grammar.Lex, Grammar.Abs,
+                       Grammar.Print
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

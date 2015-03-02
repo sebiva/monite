@@ -2,6 +2,8 @@ all:
 	bnfc -d Grammar.cf
 	happy -gca Grammar/Par.y
 	alex -g Grammar/Lex.x
+	rm Grammar/Lex.x
+	rm Grammar/Par.y
 
 clean:
 	-rm -f Grammar/*.log Grammar/*.aux Grammar/*.hi Grammar/*.o Grammar/*.dvi

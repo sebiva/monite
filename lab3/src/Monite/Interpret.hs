@@ -14,7 +14,7 @@ import System.Process (createProcess, waitForProcess, proc )
 import Control.Monad ( Monad )
 import Control.Applicative ( Applicative )
 import Control.Monad.Except ( ExceptT, runExceptT )
-import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT )
+import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT, get, modify )
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 
 import Data.List (intersperse)
@@ -27,9 +27,9 @@ newtype MoniteM a = Monite { runMonite :: StateT Env
 
 -- | Monite shell environment, keep track of path and variables
 data Env = Env {
-  vars :: M.Map Var String,
+  vars :: M.Map Var [String],
   path :: FilePath
-}
+} deriving (Show)
 
 -- | Monite error
 data MoniteErr = Err {
@@ -48,6 +48,7 @@ interpret s = do
       putStrLn (show tree)    -- TODO : Debug
       putStrLn "--------------------------"
       putStrLn (printTree tree)
+      putStrLn "--------------------------"
 
       res <- runExceptT $ evalStateT (runMonite (eval tree)) emptyEnv
       case res of
@@ -63,30 +64,55 @@ emptyEnv = Env M.empty "." -- -- TODO: $HOME? / Conf : 2015-03-02 - 17:28:51 (Jo
 
 -- | Evaluate the abstract syntax tree, as parsed by the lexer
 eval :: Program -> MoniteM ()
-eval (PProg exps) = mapM_ evalExp exps
+eval (PProg exps) = do
+  env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
+  liftIO $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)
+  mapM_ evalExp exps
 
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
-evalExp :: Exp -> MoniteM ()
+evalExp :: Exp -> MoniteM [String]
 evalExp e = case e of
   (EComp e1 v e2)   -> undefined
-  (ELet v e1 e2)    -> undefined
+  (ELet v e1 e2)    -> do
+    vse1 <- evalExp e1             -- eval e1, and save string value of e1 -- TODO: This should not be output, but only saved in the variable : 2015-03-02 - 21:29:21 (John)
+    updateVar v vse1               -- update env with the var v, and value of e1
+    evalExp e2                     -- eval e2 in the updated environment
   (EList els)       -> undefined
   (ECmd c)          -> do
     (s:ss)    <- evalCmd c
-    (_,_,_,p) <- liftIO $ createProcess (proc s ss)
+    (_,_,_,p) <- liftIO $ createProcess (proc s ss) -- TODO: We need to create processes in another way : 2015-03-02 - 21:33:16 (John)
     liftIO $ waitForProcess p
-    return ()
+    return []
 
 -- | Evaluate the used command -- TODO: Implement pipe, out, in : 2015-03-02 - 17:51:18 (John)
 evalCmd :: Cmd -> MoniteM ([String]) -- String for testing
 evalCmd c = case c of
-  (CText ts)        -> return $ concatText ts
+  (CText ts)        -> concatText ts
   (CPipe c1 c2)     -> undefined
   (COut c1 c2)      -> undefined
   (CIn c1 c2)       -> undefined
 
+-- | Update a var in the environment
+updateVar :: Var -> [String] -> MoniteM ()
+updateVar v s = do
+  modify (\env -> env { vars = M.insert v s (vars env) })
+  env <- get
+  liftIO $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)
+  return ()
+
+-- | Lookup a var in the environment
+lookupVar :: Var -> MoniteM [String]
+lookupVar v = do
+  env <- get
+  case M.lookup v (vars env) of
+    Nothing -> undefined -- TODO: Define : 2015-03-02 - 20:52:25 (John)
+    Just v  -> return v
+
 -- | Convert a list of text to a list of string
-concatText :: [Text] -> [String]
-concatText ts = map get ts
-  where get (TLit (Lit s)) = s
-        get (TVar (Var s)) = s
+concatText :: [Text] -> MoniteM [String]
+concatText ts = do ss <- mapM get ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
+                   liftIO $ putStrLn (show ss)
+                   return $ concat ss
+  where get :: Text -> MoniteM [String]
+        get (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
+        get (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]

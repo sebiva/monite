@@ -13,7 +13,7 @@ author:              Sebastian Ivarsson, John Martinsson
 maintainer:          john.martinsson@gmail.com, ivarsson.sebastian@gmail.com
 -- copyright:
 category:            Languages
-build-type:          Experimental
+build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 

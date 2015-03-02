@@ -9,7 +9,7 @@ import Grammar.Par (pProgram, myLexer)
 import Grammar.Print (printTree)
 import Grammar.Abs
 
-import System.Process (createProcess, waitForProcess, proc )
+import System.Process
 
 import Control.Monad ( Monad )
 import Control.Applicative ( Applicative )
@@ -80,7 +80,8 @@ evalExp e = case e of
   (EList els)       -> undefined
   (ECmd c)          -> do
     (s:ss)    <- evalCmd c
-    (_,_,_,p) <- liftIO $ createProcess (proc s ss) -- TODO: We need to create processes in another way : 2015-03-02 - 21:33:16 (John)
+    env       <- get
+    (_,_,_,p) <- liftIO $ createProcess (proc' s ss (path env)) -- TODO: We need to create processes in another way : 2015-03-02 - 21:33:16 (John)
     liftIO $ waitForProcess p
     return []
 
@@ -107,6 +108,18 @@ lookupVar v = do
   case M.lookup v (vars env) of
     Nothing -> undefined -- TODO: Define : 2015-03-02 - 20:52:25 (John)
     Just v  -> return v
+
+proc' :: FilePath -> [String] -> FilePath -> CreateProcess
+proc' cmd args cwd = CreateProcess { cmdspec = RawCommand cmd args,
+                                     cwd     = return $ cwd,
+                                     env     = Nothing,
+                                     std_in  = Inherit,
+                                     std_out = Inherit,
+                                     std_err = Inherit,
+                                     close_fds = False,
+                                     create_group = False,
+                                     delegate_ctlc = False}
+
 
 -- | Convert a list of text to a list of string
 concatText :: [Text] -> MoniteM [String]

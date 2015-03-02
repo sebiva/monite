@@ -2,19 +2,24 @@ comment "#" ;
 
 PProg.   Program ::= [Exp] ;
 
-EList.   Exp3 ::= "[" Exp "|" Var "<-" Exp "]" ;
-ELet.    Exp2 ::= "let" Var "=" Exp "in" Exp ;
+EComp.   Exp4 ::= "{" Exp ":" Var "<-" Exp "}" ;
+ELet.    Exp3 ::= "let" Var "=" Exp "in" Exp ;
+EList.   Exp2 ::= "[" ListEl "]" ;
 ECmd.    Exp1 ::= Cmd ;
 separator Exp ";" ;
-coercions Exp 3 ;
+coercions Exp 4 ;
 
-CCmd.    Cmd ::= [Text] ;
+LExp. ListEl  ::= Exp ;
+separator ListEl "," ;
 
-TLit.   Text ::= Lit ;
-TVar.   Text ::= Var ;
+
+CCmd.     Cmd ::= [Text] ;
+
+TLit.    Text ::= Lit ;
+TVar.    Text ::= Var ;
 separator nonempty Text "" ;
 {-token Lit (char - ('[' | ']') (char - ('[' | ']'))*) ;-}
-token Lit (char - ["[]$;\t\n "] (char - ["[]$;\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
+token Lit (char - ["{}$;:\t\n "] (char - ["{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
 token Var ('$' (letter | digit | '_')*) ;
 {-token Var (letter (digit | '_' | letter)*) ;-}
 

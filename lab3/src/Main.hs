@@ -3,13 +3,15 @@ module Main (main) where
 import System.Environment (getArgs)
 import System.Console.Haskeline
 import Interpret (interpret)
+import Control.Monad.IO.Class (liftIO)
 
 -- | Starting the shell main loop with a possible script file as argument.
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [file] -> interpret file
+    [file] -> do s <- readFile file
+                 interpret s
     _      -> getInput
 
 -- | Get input from the user
@@ -22,5 +24,5 @@ getInput = runInputT defaultSettings loop
       case minput of
         Nothing -> return ()
         Just "quit" -> return ()
-        Just input -> do outputStrLn $ "Input was: " ++ input
+        Just input -> do liftIO $ interpret input
                          loop

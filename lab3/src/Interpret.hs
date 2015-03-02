@@ -9,8 +9,8 @@ import Grammar.Abs (Exp, Lit, Cmd)
 
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> IO ()
-interpret file = do
-  s <- readFile file
+interpret s = do
+  {-s <- readFile file-}
   putStrLn (show (myLexer s))
   case pProgram $ myLexer s of
     Ok tree -> do

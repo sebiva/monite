@@ -10,6 +10,7 @@ import Grammar.Print (printTree)
 import Grammar.Abs
 
 import System.Process
+import System.Directory ( getHomeDirectory )
 
 import Control.Monad ( Monad )
 import Control.Applicative ( Applicative )
@@ -50,7 +51,8 @@ interpret s = do
       putStrLn (printTree tree)
       putStrLn "--------------------------"
 
-      res <- runExceptT $ evalStateT (runMonite (eval tree)) emptyEnv
+      env <- emptyEnv
+      res <- runExceptT $ evalStateT (runMonite (eval tree)) env
       case res of
         Left err -> putStrLn "error"
         Right a  -> return ()
@@ -59,8 +61,9 @@ interpret s = do
       putStrLn err
 
 -- | An empty environment
-emptyEnv :: Env
-emptyEnv = Env M.empty "." -- -- TODO: $HOME? / Conf : 2015-03-02 - 17:28:51 (John)
+emptyEnv :: IO Env
+emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John)
+              return $ Env M.empty home
 
 -- | Evaluate the abstract syntax tree, as parsed by the lexer
 eval :: Program -> MoniteM ()

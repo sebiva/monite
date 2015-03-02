@@ -10,11 +10,11 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [file] -> do s <- readFile file
-                 interpret s
-    _      -> getInput
+    [file] -> do s <- readFile file -- read the script file
+                 interpret s        -- interpret the script file
+    _      -> getInput              -- get user commands
 
--- | Get input from the user
+-- | Get commands from the user
 getInput :: IO ()
 getInput = runInputT defaultSettings loop
   where

@@ -47,7 +47,7 @@ data MoniteErr = Err {
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> MoniteM Env
 interpret s = do
-  {-putStrLn (show (myLexer s)) -- TODO : Debug-}
+  putStrLn (show (myLexer s)) -- TODO : Debug
   case pProgram $ myLexer s of
     Ok tree -> do
       io $ putStrLn (show tree)    -- TODO : Debug
@@ -116,8 +116,28 @@ evalCmd c input output = case c of
     (i, o) <- evalCmd c2 (UseHandle h) output
     liftIO $ removeFile fp -- Clean up the temporary file
     return (i, o)
-  (COut c1 c2)      -> undefined
-  (CIn c1 c2)       -> undefined
+  (COut c' t)      -> do -- TODO: Catch errors when opening files
+    f <- getFilename t
+    h <- liftIO $ openFile f WriteMode
+    (i, o) <- evalCmd c' input (UseHandle h)
+    liftIO $ hClose h
+    return (i, o)
+  (CIn c' t)       -> do -- TODO: Catch errors when opening files
+    f <- getFilename t
+    liftIO $ putStrLn f
+    h <- liftIO $ openFile f ReadMode
+    (i, o) <- evalCmd c' (UseHandle h) output
+    liftIO $ hClose h
+    return (i, o)
+
+-- | Return a filename from a Text
+getFilename :: Text -> MoniteM FilePath
+getFilename t =
+  case t of
+    (TLit (Lit l)) -> return l
+    (TVar v) -> do
+      ss <- lookupVar v
+      return $ concat ss
 
 changeWorkingDirectory :: [Text] -> MoniteM ()
 changeWorkingDirectory [t] = do

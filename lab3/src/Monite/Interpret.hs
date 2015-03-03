@@ -13,7 +13,7 @@ import Grammar.Print (printTree)
 import Grammar.Abs
 
 import System.Process
-import System.Directory ( getHomeDirectory, removeFile )
+import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory )
 import System.IO
 
 import Control.Monad ( Monad )
@@ -47,7 +47,7 @@ data MoniteErr = Err {
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> MoniteM Env
 interpret s = do
-  putStrLn (show (myLexer s)) -- TODO : Debug
+  io $ putStrLn (show (myLexer s)) -- TODO : Debug
   case pProgram $ myLexer s of
     Ok tree -> do
       io $ putStrLn (show tree)    -- TODO : Debug
@@ -141,9 +141,10 @@ getFilename t =
 
 changeWorkingDirectory :: [Text] -> MoniteM ()
 changeWorkingDirectory [t] = do
-  [newPath] <- getText t
+  [newPath] <- getText t -- TODO: Now accepts invalid paths from tab completion : 2015-03-03 - 16:16:11 (John)
   liftIO $ putStrLn newPath
   modify (\env -> env { path = newPath } )
+  io $ setCurrentDirectory newPath
   env <- get
   liftIO $ putStrLn (path env)
   return ()

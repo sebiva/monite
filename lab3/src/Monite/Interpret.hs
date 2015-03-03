@@ -43,7 +43,6 @@ data MoniteErr = Err {
   errMsg  :: String
 }
 
-
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> MoniteM Env
 interpret s = do
@@ -56,25 +55,18 @@ interpret s = do
       io $ putStrLn "--------------------------"
 
       (eval tree)
-      get
+      get :: MoniteM Env
 
     Bad err -> do
       io $ putStrLn err
-      get
+      get :: MoniteM Env
 
-io :: (MonadIO m) => IO a -> m a
-io i = liftIO i
-
--- | An empty environment
-emptyEnv :: IO Env
-emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John)
-              return $ Env M.empty home
 
 -- | Evaluate the abstract syntax tree, as parsed by the lexer
 eval :: Program -> MoniteM ()
 eval (PProg exps) = do
   env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
-  liftIO $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)
+  io $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)
   mapM_ (\e -> evalExp e Inherit Inherit) exps
 
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
@@ -85,49 +77,49 @@ evalExp e input output = case e of
     (fp, h) <- newTempFile
     evalExp e1 input (UseHandle h)     -- Evaluate the expression with its output redirected to the temp file
     h <- reopenClosedFile fp -- Since createProcess seems to close the file, we need to open it again.
-    vse1 <- liftIO $ hGetContents h
-    liftIO $ removeFile fp             -- Clean up the temporary file
-    liftIO $ putStrLn (show vse1)
+    vse1 <- io $ hGetContents h
+    io $ removeFile fp             -- Clean up the temporary file
+    io $ putStrLn (show vse1)
     updateVar v (lines vse1)           -- update env with the var v, and the result of e1
     evalExp e2 input output            -- eval e2 in the updated environment
   (EList els)       -> undefined
   (ECmd c)          -> evalCmd c input output >> return ()
 
--- | Evaluate the used command -- TODO: Implement pipe, out, in : 2015-03-02 - 17:51:18 (John)
+-- | Evaluate the used command
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
 evalCmd c input output = case c of
   (CText (b:ts))        ->
     case b of
      (TLit (Lit ('c':'d':[]))) -> do -- TODO: Nicer way? : 2015-03-03 - 13:13:03 (John)
         changeWorkingDirectory ts
-        liftIO $ putStrLn (show ts)
+        io $ putStrLn (show ts)
         return (input, output)
      _              -> do
-        liftIO $ putStrLn $ "CMD: " ++ show c
+        io $ putStrLn $ "CMD: " ++ show c
         (s:ss) <- readText (b:ts)
         env       <- get
-        (i,o,_,p) <- liftIO $ createProcess (proc' s ss (path env) input output)
-        liftIO $ waitForProcess p
+        (i,o,_,p) <- io $ createProcess (proc' s ss (path env) input output)
+        io $ waitForProcess p
         return (input, output)
   (CPipe c1 c2)     -> do
     (fp, h) <- newTempFile
     evalCmd c1 input (UseHandle h)
     h <- reopenClosedFile fp
     (i, o) <- evalCmd c2 (UseHandle h) output
-    liftIO $ removeFile fp -- Clean up the temporary file
+    io $ removeFile fp -- Clean up the temporary file
     return (i, o)
   (COut c' t)      -> do -- TODO: Catch errors when opening files
     f <- getFilename t
-    h <- liftIO $ openFile f WriteMode
+    h <- io $ openFile f WriteMode
     (i, o) <- evalCmd c' input (UseHandle h)
-    liftIO $ hClose h
+    io $ hClose h
     return (i, o)
   (CIn c' t)       -> do -- TODO: Catch errors when opening files
     f <- getFilename t
-    liftIO $ putStrLn f
-    h <- liftIO $ openFile f ReadMode
+    io $ putStrLn f
+    h <- io $ openFile f ReadMode
     (i, o) <- evalCmd c' (UseHandle h) output
-    liftIO $ hClose h
+    io $ hClose h
     return (i, o)
 
 -- | Return a filename from a Text
@@ -141,28 +133,30 @@ getFilename t =
 
 changeWorkingDirectory :: [Text] -> MoniteM ()
 changeWorkingDirectory [t] = do
-  [newPath] <- getText t -- TODO: Now accepts invalid paths from tab completion : 2015-03-03 - 16:16:11 (John)
-  liftIO $ putStrLn newPath
-  modify (\env -> env { path = newPath } )
-  io $ setCurrentDirectory newPath
+  [newPath] <- getText t
   env <- get
-  liftIO $ putStrLn (path env)
+  let finalPath = createPath (path env) newPath
+  modify (\env -> env { path = finalPath } )
+  io $ setCurrentDirectory finalPath
   return ()
+  where createPath old new = case new of
+          ('/':ts) -> ('/':ts)
+          ts       -> old ++ ts
 
 -- | Create a new temporary file
 newTempFile :: MoniteM (FilePath, Handle)
-newTempFile = liftIO $ openTempFile "." ".tmp.t"
+newTempFile = io $ openTempFile "." ".tmp.t"
 
 -- | Re open a closed file in read mode
 reopenClosedFile :: FilePath -> MoniteM (Handle)
-reopenClosedFile fp = liftIO $ openFile fp ReadMode
+reopenClosedFile fp = io $ openFile fp ReadMode
 
 -- | Update a var in the environment
 updateVar :: Var -> [String] -> MoniteM ()
 updateVar v s = do
   modify (\env -> env { vars = M.insert v s (vars env) })
   env <- get
-  liftIO $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)
+  io $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)
   return ()
 
 -- | Lookup a var in the environment
@@ -187,12 +181,21 @@ proc' cmd args cwd input output =
                   delegate_ctlc = False}
 
 
+-- | An empty environment
+emptyEnv :: IO Env
+emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John)
+              return $ Env M.empty home
+
 -- | Convert a list of text to a list of string
 readText :: [Text] -> MoniteM [String]
 readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
-                 liftIO $ putStrLn (show ss)
+                 io $ putStrLn (show ss)
                  return $ concat ss
 
 getText :: Text -> MoniteM [String]
 getText (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
 getText (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]
+
+-- | Shorthand for io actions
+io :: (MonadIO m) => IO a -> m a
+io i = liftIO i

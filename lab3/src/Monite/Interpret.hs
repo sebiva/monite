@@ -184,7 +184,7 @@ proc' cmd args cwd input output =
 -- | An empty environment
 emptyEnv :: IO Env
 emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John)
-              return $ Env M.empty home
+              return $ Env M.empty (home ++ ['/']) -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John)
 
 -- | Convert a list of text to a list of string
 readText :: [Text] -> MoniteM [String]

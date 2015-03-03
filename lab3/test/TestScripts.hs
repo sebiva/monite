@@ -17,7 +17,7 @@ main = do
   putStrLn output
   eOutput <- readFile $ "./test/good/good.sh.output"
   putStrLn eOutput
-  rmoveFile fp
+  removeFile fp
   if output == eOutput then return ()
   else exitFailure
 

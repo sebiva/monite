@@ -11,7 +11,7 @@ import Grammar.Abs
 
 import System.Process
 import System.Directory ( getHomeDirectory, removeFile )
-import System.IO ( hGetContents, openTempFile, openFile, IOMode (ReadMode) )
+import System.IO
 
 import Control.Monad ( Monad )
 import Control.Applicative ( Applicative )
@@ -78,14 +78,14 @@ evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
   (EComp e1 v e2)   -> undefined
   (ELet v e1 e2)    -> do
-    (fp, h) <- liftIO $ openTempFile "." ".temp" -- The file needs to be opened twice for some reason
-    evalExp e1 input (UseHandle h)
-    h <- liftIO $ openFile fp ReadMode
+    (fp, h) <- newTempFile
+    evalExp e1 input (UseHandle h)     -- Evaluate the expression with its output redirected to the temp file
+    h <- reopenClosedFile fp -- Since createProcess seems to close the file, we need to open it again.
     vse1 <- liftIO $ hGetContents h
-    liftIO $ removeFile fp
+    liftIO $ removeFile fp             -- Clean up the temporary file
     liftIO $ putStrLn (show vse1)
-    updateVar v (lines vse1)               -- update env with the var v, and value of e1
-    evalExp e2 input output                     -- eval e2 in the updated environment
+    updateVar v (lines vse1)           -- update env with the var v, and the result of e1
+    evalExp e2 input output            -- eval e2 in the updated environment
   (EList els)       -> undefined
   (ECmd c)          -> evalCmd c input output >> return ()
 
@@ -96,12 +96,26 @@ evalCmd c input output = case c of
     liftIO $ putStrLn $ "CMD: " ++ show c
     (s:ss) <- readText ts
     env       <- get
-    (_,_,_,p) <- liftIO $ createProcess (proc' s ss (path env) input output) -- TODO: We need to create processes in another way : 2015-03-02 - 21:33:16 (John)
+    (i,o,_,p) <- liftIO $ createProcess (proc' s ss (path env) input output)
     liftIO $ waitForProcess p
     return (input, output)
-  (CPipe c1 c2)     -> undefined
+  (CPipe c1 c2)     -> do
+    (fp, h) <- newTempFile
+    evalCmd c1 input (UseHandle h)
+    h <- reopenClosedFile fp
+    (i, o) <- evalCmd c2 (UseHandle h) output
+    liftIO $ removeFile fp -- Clean up the temporary file
+    return (i, o)
   (COut c1 c2)      -> undefined
   (CIn c1 c2)       -> undefined
+
+-- | Create a new temporary file
+newTempFile :: MoniteM (FilePath, Handle)
+newTempFile = liftIO $ openTempFile "." ".tmp.t"
+
+-- | Re open a closed file in read mode
+reopenClosedFile :: FilePath -> MoniteM (Handle)
+reopenClosedFile fp = liftIO $ openFile fp ReadMode
 
 -- | Update a var in the environment
 updateVar :: Var -> [String] -> MoniteM ()

@@ -14,14 +14,15 @@ separator ListEl "," ;
 
 CText.    Cmd4 ::= [Text] ;
 CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
-COut.     Cmd2 ::= Cmd2 ">" Cmd3 ;
-CIn.      Cmd1 ::= Cmd1 "<" Cmd2 ;
+COut.     Cmd2 ::= Cmd2 ">" Text ;
+CIn.      Cmd1 ::= Cmd1 "<" Text ;
 coercions Cmd 4 ;
 
 
 TLit.    Text ::= Lit ;
 TVar.    Text ::= Var ;
 separator nonempty Text "" ;
+
 {-token Lit (char - ('[' | ']') (char - ('[' | ']'))*) ;-}
 token Lit (char - ["()[]<>|{}$;:\t\n "] (char - ["()[]<>|{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
 token Var ('$' (letter | digit | '_')*) ;

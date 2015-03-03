@@ -7,8 +7,6 @@ import System.Directory ( getHomeDirectory, removeFile )
 import Monite.Interpret
 
 import Control.Monad.IO.Class (liftIO)
-{-import Control.Monad ( Monad )-}
-{-import Control.Applicative ( Applicative )-}
 import Control.Monad.Except ( ExceptT, runExceptT )
 import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT, get, modify, lift )
 import Control.Monad.IO.Class ( liftIO, MonadIO )
@@ -45,7 +43,3 @@ run m env = do
   case res of
     Left err -> fail $ "error"
     Right a  -> return a
-
-emptyEnv :: IO Env
-emptyEnv = do home <- getHomeDirectory
-              return $ Env M.empty home

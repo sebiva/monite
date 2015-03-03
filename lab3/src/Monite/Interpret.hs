@@ -1,6 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Monite.Interpret (
     interpret     -- :: String -> IO ()
+  , emptyEnv
+  , MoniteM (..)
+  , Env (..)
   )
 where
 
@@ -30,7 +33,7 @@ newtype MoniteM a = Monite { runMonite :: StateT Env
 -- | Monite shell environment, keep track of path and variables
 data Env = Env {
   vars :: M.Map Var [String],
-  path :: FilePath
+  path:: FilePath
 } deriving (Show)
 
 -- | Monite error
@@ -42,24 +45,25 @@ data MoniteErr = Err {
 
 
 -- | The main loop which interprets the shell commands executed by the user
-interpret :: String -> IO ()
+interpret :: String -> MoniteM Env
 interpret s = do
   {-putStrLn (show (myLexer s)) -- TODO : Debug-}
   case pProgram $ myLexer s of
     Ok tree -> do
-      putStrLn (show tree)    -- TODO : Debug
-      putStrLn "--------------------------"
-      putStrLn (printTree tree)
-      putStrLn "--------------------------"
+      io $ putStrLn (show tree)    -- TODO : Debug
+      io $ putStrLn "--------------------------"
+      io $ putStrLn (printTree tree)
+      io $ putStrLn "--------------------------"
 
-      env <- emptyEnv
-      res <- runExceptT $ evalStateT (runMonite (eval tree)) env
-      case res of
-        Left err -> putStrLn "error"
-        Right a  -> return ()
+      (eval tree)
+      get
 
     Bad err -> do
-      putStrLn err
+      io $ putStrLn err
+      get
+
+io :: (MonadIO m) => IO a -> m a
+io i = liftIO i
 
 -- | An empty environment
 emptyEnv :: IO Env
@@ -92,13 +96,19 @@ evalExp e input output = case e of
 -- | Evaluate the used command -- TODO: Implement pipe, out, in : 2015-03-02 - 17:51:18 (John)
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
 evalCmd c input output = case c of
-  (CText ts)        -> do
-    liftIO $ putStrLn $ "CMD: " ++ show c
-    (s:ss) <- readText ts
-    env       <- get
-    (i,o,_,p) <- liftIO $ createProcess (proc' s ss (path env) input output)
-    liftIO $ waitForProcess p
-    return (input, output)
+  (CText (b:ts))        ->
+    case b of
+     (TLit (Lit ('c':'d':[]))) -> do -- TODO: Nicer way? : 2015-03-03 - 13:13:03 (John)
+        changeWorkingDirectory ts
+        liftIO $ putStrLn (show ts)
+        return (input, output)
+     _              -> do
+        liftIO $ putStrLn $ "CMD: " ++ show c
+        (s:ss) <- readText (b:ts)
+        env       <- get
+        (i,o,_,p) <- liftIO $ createProcess (proc' s ss (path env) input output)
+        liftIO $ waitForProcess p
+        return (input, output)
   (CPipe c1 c2)     -> do
     (fp, h) <- newTempFile
     evalCmd c1 input (UseHandle h)
@@ -108,6 +118,15 @@ evalCmd c input output = case c of
     return (i, o)
   (COut c1 c2)      -> undefined
   (CIn c1 c2)       -> undefined
+
+changeWorkingDirectory :: [Text] -> MoniteM ()
+changeWorkingDirectory [t] = do
+  [newPath] <- getText t
+  liftIO $ putStrLn newPath
+  modify (\env -> env { path = newPath } )
+  env <- get
+  liftIO $ putStrLn (path env)
+  return ()
 
 -- | Create a new temporary file
 newTempFile :: MoniteM (FilePath, Handle)
@@ -149,9 +168,10 @@ proc' cmd args cwd input output =
 
 -- | Convert a list of text to a list of string
 readText :: [Text] -> MoniteM [String]
-readText ts = do ss <- mapM get ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
+readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
                  liftIO $ putStrLn (show ss)
                  return $ concat ss
-  where get :: Text -> MoniteM [String]
-        get (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
-        get (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]
+
+getText :: Text -> MoniteM [String]
+getText (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
+getText (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]

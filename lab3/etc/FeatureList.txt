@@ -1,0 +1,2 @@
+1. Tab complete git commands
+2. Don't kill Monite with Ctrl-c

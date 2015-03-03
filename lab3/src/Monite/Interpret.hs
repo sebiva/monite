@@ -10,7 +10,8 @@ import Grammar.Print (printTree)
 import Grammar.Abs
 
 import System.Process
-import System.Directory ( getHomeDirectory )
+import System.Directory ( getHomeDirectory, removeFile )
+import System.IO ( hGetContents, openTempFile, openFile, IOMode (ReadMode) )
 
 import Control.Monad ( Monad )
 import Control.Applicative ( Applicative )
@@ -43,7 +44,7 @@ data MoniteErr = Err {
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> IO ()
 interpret s = do
-  putStrLn (show (myLexer s)) -- TODO : Debug
+  {-putStrLn (show (myLexer s)) -- TODO : Debug-}
   case pProgram $ myLexer s of
     Ok tree -> do
       putStrLn (show tree)    -- TODO : Debug
@@ -70,28 +71,34 @@ eval :: Program -> MoniteM ()
 eval (PProg exps) = do
   env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
   liftIO $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)
-  mapM_ evalExp exps
+  mapM_ (\e -> evalExp e Inherit Inherit) exps
 
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
-evalExp :: Exp -> MoniteM [String]
-evalExp e = case e of
+evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
+evalExp e input output = case e of
   (EComp e1 v e2)   -> undefined
   (ELet v e1 e2)    -> do
-    vse1 <- evalExp e1             -- eval e1, and save string value of e1 -- TODO: This should not be output, but only saved in the variable : 2015-03-02 - 21:29:21 (John)
-    updateVar v vse1               -- update env with the var v, and value of e1
-    evalExp e2                     -- eval e2 in the updated environment
+    (fp, h) <- liftIO $ openTempFile "." ".temp" -- The file needs to be opened twice for some reason
+    evalExp e1 input (UseHandle h)
+    h <- liftIO $ openFile fp ReadMode
+    vse1 <- liftIO $ hGetContents h
+    liftIO $ removeFile fp
+    liftIO $ putStrLn (show vse1)
+    updateVar v (lines vse1)               -- update env with the var v, and value of e1
+    evalExp e2 input output                     -- eval e2 in the updated environment
   (EList els)       -> undefined
-  (ECmd c)          -> do
-    (s:ss)    <- evalCmd c
-    env       <- get
-    (_,_,_,p) <- liftIO $ createProcess (proc' s ss (path env)) -- TODO: We need to create processes in another way : 2015-03-02 - 21:33:16 (John)
-    liftIO $ waitForProcess p
-    return []
+  (ECmd c)          -> evalCmd c input output >> return ()
 
 -- | Evaluate the used command -- TODO: Implement pipe, out, in : 2015-03-02 - 17:51:18 (John)
-evalCmd :: Cmd -> MoniteM ([String]) -- String for testing
-evalCmd c = case c of
-  (CText ts)        -> concatText ts
+evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
+evalCmd c input output = case c of
+  (CText ts)        -> do
+    liftIO $ putStrLn $ "CMD: " ++ show c
+    (s:ss) <- readText ts
+    env       <- get
+    (_,_,_,p) <- liftIO $ createProcess (proc' s ss (path env) input output) -- TODO: We need to create processes in another way : 2015-03-02 - 21:33:16 (John)
+    liftIO $ waitForProcess p
+    return (input, output)
   (CPipe c1 c2)     -> undefined
   (COut c1 c2)      -> undefined
   (CIn c1 c2)       -> undefined
@@ -112,23 +119,25 @@ lookupVar v = do
     Nothing -> undefined -- TODO: Define : 2015-03-02 - 20:52:25 (John)
     Just v  -> return v
 
-proc' :: FilePath -> [String] -> FilePath -> CreateProcess
-proc' cmd args cwd = CreateProcess { cmdspec = RawCommand cmd args,
-                                     cwd     = return $ cwd,
-                                     env     = Nothing,
-                                     std_in  = Inherit,
-                                     std_out = Inherit,
-                                     std_err = Inherit,
-                                     close_fds = False,
-                                     create_group = False,
-                                     delegate_ctlc = False}
+-- | Run a command cmd with args in cwd with the provided input and output pipes
+proc' :: FilePath -> [String] -> FilePath -> StdStream -> StdStream -> CreateProcess
+proc' cmd args cwd input output =
+  CreateProcess { cmdspec = RawCommand cmd args,
+                  cwd     = return $ cwd,
+                  env     = Nothing,
+                  std_in  = input,
+                  std_out = output,
+                  std_err = Inherit,
+                  close_fds = False,
+                  create_group = False,
+                  delegate_ctlc = False}
 
 
 -- | Convert a list of text to a list of string
-concatText :: [Text] -> MoniteM [String]
-concatText ts = do ss <- mapM get ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
-                   liftIO $ putStrLn (show ss)
-                   return $ concat ss
+readText :: [Text] -> MoniteM [String]
+readText ts = do ss <- mapM get ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
+                 liftIO $ putStrLn (show ss)
+                 return $ concat ss
   where get :: Text -> MoniteM [String]
         get (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
         get (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]

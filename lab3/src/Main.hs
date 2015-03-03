@@ -2,7 +2,7 @@ module Main (main) where
 
 import System.Environment (getArgs)
 import System.Console.Haskeline
-import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory )
+import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory, getCurrentDirectory )
 
 import Monite.Interpret
 
@@ -17,12 +17,13 @@ main :: IO ()
 main = do
   args <- getArgs
   env <- emptyEnv
-  setCurrentDirectory (path env)
   case args of
     [file] -> do s <- readFile file               -- read the script file
-                 run (interpret s) env            -- interpret the script file
+                 path <- getCurrentDirectory
+                 run (interpret s) (Env M.empty (path ++ ['/']))            -- interpret the script file
                  return ()
-    _      -> do inputLoop env                     -- get user commands
+    _      -> do setCurrentDirectory (path env)
+                 inputLoop env                     -- get user commands
 
 -- | Get commands from the user
 inputLoop :: Env -> IO ()

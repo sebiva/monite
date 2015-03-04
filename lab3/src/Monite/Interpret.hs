@@ -72,18 +72,28 @@ eval (PProg exps) = do
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
-  (EComp e1 v e2)   -> undefined
-  (ELet v e1 e2)    -> do
-    (fp, h) <- newTempFile
-    evalExp e1 input (UseHandle h)     -- Evaluate the expression with its output redirected to the temp file
-    h <- reopenClosedFile fp -- Since createProcess seems to close the file, we need to open it again.
-    vse1 <- io $ hGetContents h
-    io $ removeFile fp             -- Clean up the temporary file
-    io $ putStrLn (show vse1)
-    updateVar v (lines vse1)           -- update env with the var v, and the result of e1
+  (EComp e1 v (EList ((LExp e2):es))) -> do
+    extendEvalExp v e2 input
+    evalExp e1 input output
+    evalExp (EComp e1 v (EList es)) input output
+  (ELet v e)        -> do
+    extendEvalExp v e input
+  (ELetIn v e1 e2)  -> do
+    extendEvalExp v e1 input
     evalExp e2 input output            -- eval e2 in the updated environment
-  (EList els)       -> undefined
+  (EList ((LExp e):es)) -> undefined
   (ECmd c)          -> evalCmd c input output >> return ()
+  where
+    extendEvalExp :: Var -> Exp -> StdStream -> MoniteM ()
+    extendEvalExp v e input = do
+      (fp, h) <- newTempFile
+      evalExp e input (UseHandle h) -- Evaluate the expression with its output redirected to the temp file
+      h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again.
+      vse <- io $ hGetContents h
+      io $ removeFile fp            -- Clean up the temporary file
+      io $ putStrLn (show vse)
+      updateVar v (lines vse)       -- update env with the var v, and the result of e1
+      return ()
 
 -- | Evaluate the used command
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing

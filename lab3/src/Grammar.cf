@@ -25,7 +25,7 @@ TVar.    Text ::= Var ;
 separator nonempty Text "" ;
 
 {-token Lit (char - ('[' | ']') (char - ('[' | ']'))*) ;-}
-token Lit (char - ["()[]<>|{}$;:\t\n "] (char - ["()[]<>|{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
+token Lit (char - [",()[]<>|{}$;:\t\n "] (char - [",()[]<>|{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
 token Var ('$' (letter | digit | '_')*) ;
 {-token Var (letter (digit | '_' | letter)*) ;-}
 

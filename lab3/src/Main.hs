@@ -12,6 +12,10 @@ import Control.Monad.IO.Class ( liftIO, MonadIO )
 
 import qualified Data.Map as M
 
+-- TODO: Fix file placement! : 2015-03-06 - 16:08:11 (John)
+mySettings :: Settings IO
+mySettings = defaultSettings { historyFile = Just "monitehistory" }
+
 -- | Starting the shell main loop with a possible script file as argument.
 main :: IO ()
 main = do
@@ -27,7 +31,7 @@ main = do
 
 -- | Get commands from the user
 inputLoop :: Env -> IO ()
-inputLoop env = runInputT defaultSettings (loop env)         -- input loop w/ default sets
+inputLoop env = runInputT mySettings (loop env)         -- input loop w/ default sets
   where
     loop :: Env -> InputT IO ()
     loop env = do

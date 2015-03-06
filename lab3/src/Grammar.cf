@@ -8,7 +8,7 @@ ELetIn.  Exp3 ::= "let" Var "=" Exp "in" Exp ;
 EList.   Exp2 ::= "[" [ListEl] "]" ;
 ECmd.    Exp1 ::= Cmd ;
 separator Exp ";" ;
-coercions Exp 4 ;
+coercions Exp 5 ;
 
 LExp. ListEl  ::= Exp ;
 separator ListEl "," ;

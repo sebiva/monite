@@ -22,7 +22,7 @@ main = do
   else exitFailure
 
 process :: FilePath -> StdStream -> CreateProcess
-process t output = CreateProcess { cmdspec = RawCommand "./dist/build/monite/monite" [t],
+process t output = CreateProcess { cmdspec = RawCommand "./dist/build/moniteshell/moniteshell" [t],
                           cwd     = Nothing,
                           env     = Nothing,
                           std_in  = Inherit,

@@ -72,11 +72,11 @@ eval (PProg exps) = do
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
-  (EComp e1 v (EList ([]))) -> do return ()
-  (EComp e1 v (EList ((LExp e2):es))) -> do
+  (EComp e1 v []) -> do return ()
+  (EComp e1 v ((LExp e2):es)) -> do
     extendEvalExp v e2 input
     evalExp e1 input output
-    evalExp (EComp e1 v (EList es)) input output
+    evalExp (EComp e1 v es) input output
   (ELet v e)        -> do
     extendEvalExp v e input
   (ELetIn v e1 e2)  -> do

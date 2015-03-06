@@ -32,7 +32,7 @@ main = do
 -- | Get commands from the user
 inputLoop :: Env -> IO ()
 inputLoop env = do
-  path <- getCurrentDirectory
+  path <- getHomeDirectory
   runInputT (mySettings path) (loop env)         -- input loop w/ default sets
   where
     loop :: Env -> InputT IO ()

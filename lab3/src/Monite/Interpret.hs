@@ -72,30 +72,33 @@ eval (PProg exps) = do
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
-  (EComp e1 v []) -> do eraseVar v >> return ()
+  (EComp e1 v []) -> eraseVar v >> return () -- erase var from env when done
   (EComp e1 v ((LExp e2):es)) -> do
-    extendEvalExp v e2 input
-    evalExp e1 input output
-    evalExp (EComp e1 v es) input output
-  (ELet v e)        -> do
-    extendEvalExp v e input
-  (ELetIn v e1 e2)  -> do
-    extendEvalExp v e1 input
-    evalExp e2 input output            -- eval e2 in the updated environment
-    eraseVar v
-  (EList ((LExp e):es)) -> undefined
-  (ECmd c)          -> evalCmd c input output >> return ()
-  where
-    extendEvalExp :: Var -> Exp -> StdStream -> MoniteM ()
-    extendEvalExp v e input = do
-      (fp, h) <- newTempFile
-      evalExp e input (UseHandle h) -- Evaluate the expression with its output redirected to the temp file
-      h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again.
-      vse <- io $ hGetContents h
-      io $ removeFile fp            -- Clean up the temporary file
-      io $ putStrLn (show vse)
-      updateVar v (lines vse)       -- update env with the var v, and the result of e1
-      return ()
+    extendEvalExp v e2 input             -- extend the environment with eval of e2
+    evalExp e1 input output              -- eval e1 in new environment
+    evalExp (EComp e1 v es) input output -- keep evaluating the rest of the list comp expressions
+  (ELet v e) -> do
+    extendEvalExp v e input              -- extend the environment with eval of e
+  (ELetIn v e1 e2) -> do
+    extendEvalExp v e1 input             -- extend the env with v := eval e1
+    evalExp e2 input output              -- eval e2 in the updated environment
+    eraseVar v                           -- erase var from env
+  (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
+  (ECmd c) -> evalCmd c input output >> return ()
+
+-- | Evaluate the expression with the stdout redirected to a temporary file, and
+-- extend the environment with the value of the evaluated expression assigned to
+-- the variable.
+extendEvalExp :: Var -> Exp -> StdStream -> MoniteM ()
+extendEvalExp v e input = do
+  (fp, h) <- newTempFile
+  evalExp e input (UseHandle h) -- Evaluate the expression with its output redirected to the temp file
+  h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again.
+  vse <- io $ hGetContents h
+  io $ removeFile fp            -- Clean up the temporary file
+  io $ putStrLn (show vse)
+  updateVar v (lines vse)       -- update env with the var v, and the result of e1
+  return ()
 
 -- | Evaluate the used command
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing

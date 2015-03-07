@@ -58,7 +58,7 @@ interpret s = do
       get :: MoniteM Env
 
     Bad err -> do
-      io $ putStrLn err
+      io $ putStrLn $ "Unrecognized command: " ++ s
       get :: MoniteM Env
 
 
@@ -72,7 +72,7 @@ eval (PProg exps) = do
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
-  (EComp e1 v []) -> do return ()
+  (EComp e1 v []) -> do eraseVar v >> return ()
   (EComp e1 v ((LExp e2):es)) -> do
     extendEvalExp v e2 input
     evalExp e1 input output
@@ -82,6 +82,7 @@ evalExp e input output = case e of
   (ELetIn v e1 e2)  -> do
     extendEvalExp v e1 input
     evalExp e2 input output            -- eval e2 in the updated environment
+    eraseVar v
   (EList ((LExp e):es)) -> undefined
   (ECmd c)          -> evalCmd c input output >> return ()
   where
@@ -133,6 +134,8 @@ evalCmd c input output = case c of
     io $ hClose h
     return (i, o)
 
+
+
 -- | Return a filename from a Text
 getFilename :: Text -> MoniteM FilePath
 getFilename t =
@@ -169,6 +172,11 @@ updateVar v s = do
   env <- get
   io $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)
   return ()
+
+-- | Erase a var from the environment
+eraseVar :: Var -> MoniteM ()
+eraseVar v = do
+  modify (\env -> env { vars = M.delete v (vars env) } )
 
 -- | Lookup a var in the environment
 lookupVar :: Var -> MoniteM [String]

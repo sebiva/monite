@@ -16,7 +16,7 @@ import System.Process
 import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory )
 import System.IO
 
-import Control.Monad ( Monad )
+import Control.Monad ( Monad, liftM )
 import Control.Applicative ( Applicative )
 import Control.Monad.Except ( ExceptT, runExceptT )
 import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT, get, modify )
@@ -100,12 +100,13 @@ extendEvalExp v e input = do
   updateVar v (lines vse)       -- update env with the var v, and the result of e1
   return ()
 
--- | Evaluate the used command
+-- | Evaluate the given command, using the provided pipes for I/O. Returns the
+-- resulting pipes (may be redirected).
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
 evalCmd c input output = case c of
   (CText (b:ts))        ->
     case b of
-     (TLit (Lit ('c':'d':[]))) -> do -- TODO: Nicer way? : 2015-03-03 - 13:13:03 (John)
+     (TLit (Lit "cd")) -> do
         changeWorkingDirectory ts
         io $ putStrLn (show ts)
         return (input, output)
@@ -137,8 +138,6 @@ evalCmd c input output = case c of
     io $ hClose h
     return (i, o)
 
-
-
 -- | Return a filename from a Text
 getFilename :: Text -> MoniteM FilePath
 getFilename t =
@@ -148,17 +147,34 @@ getFilename t =
       ss <- lookupVar v
       return $ concat ss
 
+-- | Change the working directory of the shell to the head of the provided list
+-- of arguments. If the list is empty, the home directory is used.
 changeWorkingDirectory :: [Text] -> MoniteM ()
-changeWorkingDirectory [t] = do
+changeWorkingDirectory ts = do
+  t <- case ts of
+        []    -> liftM (TLit . Lit . (++ "/")) (io getHomeDirectory)
+        (t:_) -> return t
   [newPath] <- getText t
   env <- get
-  let finalPath = createPath (path env) newPath
+  let finalPath = modifyPath (path env) newPath -- TODO: Check that the path exists
   modify (\env -> env { path = finalPath } )
   io $ setCurrentDirectory finalPath
   return ()
-  where createPath old new = case new of
-          ('/':ts) -> ('/':ts)
-          ts       -> old ++ ts
+
+-- | Modify the old path with the new. If new is a subdirectory, they are
+-- simply concatenated. If new is "..", the result is up one from "old".
+modifyPath :: FilePath -> FilePath -> FilePath
+modifyPath old new = case new of
+  ('.':'.':[])  -> upDir old
+  ('.':[])      -> old
+  ('/':ts)      -> ('/':ts)
+  []            -> old
+  ts            -> old ++ ts ++ if last ts /= '/' then "/" else ""
+
+-- | Go up one step from a valid filepath ('/' at the end).
+upDir :: FilePath -> FilePath
+upDir "/" = "/"
+upDir x   = reverse . dropWhile (/='/') . reverse . init $ x
 
 -- | Create a new temporary file
 newTempFile :: MoniteM (FilePath, Handle)
@@ -214,10 +230,12 @@ readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) 
                  io $ putStrLn (show ss)
                  return $ concat ss
 
+-- | Get the text as a list of strings from a literal. If it is a variable,
+-- the value is looked up in the environment.
 getText :: Text -> MoniteM [String]
 getText (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
 getText (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a
-io i = liftIO i
+io = liftIO

@@ -13,13 +13,13 @@ import Grammar.Print (printTree)
 import Grammar.Abs
 
 import System.Process
-import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory )
+import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory, doesDirectoryExist )
 import System.IO
 
 import Control.Monad ( Monad, liftM )
 import Control.Applicative ( Applicative )
-import Control.Monad.Except ( ExceptT, runExceptT )
-import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT, get, modify )
+import Control.Monad.Except ( ExceptT, runExceptT, MonadError (..) )
+import Control.Monad.State.Lazy ( MonadState, StateT (..), evalStateT, get, modify )
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 
 import Data.List (intersperse)
@@ -28,7 +28,12 @@ import qualified Data.Map as M
 -- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
                                             (ExceptT MoniteErr IO) a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadState Env)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadState Env, MonadError MoniteErr)
+
+{-instance MonadError (MoniteM a) where-}
+  {-throwError = undefined-}
+  {-catchError = undefined-}
+
 
 -- | Monite shell environment, keep track of path and variables
 data Env = Env {
@@ -67,7 +72,17 @@ eval :: Program -> MoniteM ()
 eval (PProg exps) = do
   env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
   io $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)
-  mapM_ (\e -> evalExp e Inherit Inherit) exps
+  mapM_ (\e -> evalExp' e Inherit Inherit) exps
+
+-- | Evaluate an expression, catching and printing any error that occurs.
+evalExp' :: Exp -> StdStream -> StdStream -> MoniteM ()
+evalExp' e i o = catchError eval handle
+  where eval       = evalExp e i o --runStateT evalExp e i o
+        handle err = do
+                      io $ putStrLn $ "Error executing: " ++ errCmd err
+                      io $ putStrLn $ "In: " ++ errPath err
+                      io $ putStrLn $ errMsg err
+
 
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
@@ -157,10 +172,19 @@ changeWorkingDirectory ts = do
   [newPath] <- getText t
   env <- get
   let finalPath = modifyPath (path env) newPath -- TODO: Check that the path exists
+  exists <- io (doesDirectoryExist finalPath)
+
+  command <- readText ts
+  let err = Err {
+    errPath = path env
+  , errCmd = "cd " ++ concat command
+  , errMsg = "Can't cd to: " ++ finalPath ++ " : it does not exist"
+  }
+
+  if not exists then throwError err else return ()
   modify (\env -> env { path = finalPath } )
   io $ setCurrentDirectory finalPath
   return ()
-
 -- | Modify the old path with the new. If new is a subdirectory, they are
 -- simply concatenated. If new is "..", the result is up one from "old".
 modifyPath :: FilePath -> FilePath -> FilePath

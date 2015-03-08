@@ -83,11 +83,16 @@ evalExp' e i o = catchError eval handle
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
-  (EComp e1 v []) -> eraseVar v >> return () -- erase var from env when done
-  (EComp e1 v ((LExp e2):es)) -> do
+  (ECompL e1 v []) -> eraseVar v >> return () -- erase var from env when done
+  (ECompL e1 v ((LExp e2):es)) -> do
     extendEvalExp v e2 input             -- extend the environment with eval of e2
     evalExp e1 input output              -- eval e1 in new environment
-    evalExp (EComp e1 v es) input output -- keep evaluating the rest of the list comp expressions
+    evalExp (ECompL e1 v es) input output -- keep evaluating the rest of the list comp expressions
+  (EComp e1 v e2) -> do
+    evalExpToStr e2 input $ \res -> do
+      io $ putStrLn (show res)
+      mapM_ (\s -> updateVar v [s] >> evalExp e1 input output) res
+      eraseVar v
   (ELet v e) -> do
     extendEvalExp v e input              -- extend the environment with eval of e
   (ELetIn v e1 e2) -> do
@@ -102,14 +107,23 @@ evalExp e input output = case e of
 -- the variable.
 extendEvalExp :: Var -> Exp -> StdStream -> MoniteM ()
 extendEvalExp v e input = do
+  evalExpToStr e input $ \res -> do
+    io $ putStrLn (show res)
+    updateVar v res               -- update env with the var v, and the result of e1
+    return ()
+
+-- | Evaluate an expression, and then perform the given action f with the
+-- output of the expression as a list of strings as input. Uses a temporary
+-- file to store the output.
+evalExpToStr :: Exp -> StdStream -> ([String] -> MoniteM a) -> MoniteM a
+evalExpToStr e input f = do
   (fp, h) <- newTempFile
   evalExp e input (UseHandle h) -- Evaluate the expression with its output redirected to the temp file
   h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again.
-  vse <- io $ hGetContents h
+  ss <- io $ hGetContents h
+  ret <- f (lines ss)
   io $ removeFile fp            -- Clean up the temporary file
-  io $ putStrLn (show vse)
-  updateVar v (lines vse)       -- update env with the var v, and the result of e1
-  return ()
+  return ret
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).

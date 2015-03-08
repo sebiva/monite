@@ -2,7 +2,8 @@ comment "#" ;
 
 PProg.   Program ::= [Exp] ;
 
-EComp.   Exp5 ::= "{" Exp ":" Var "<-" "[" [ListEl] "]" "}" ;
+ECompL.  Exp5 ::= "{" Exp ":" Var "<-" "[" [ListEl] "]" "}" ;
+EComp.   Exp5 ::= "{" Exp ":" Var "<-" Exp "}" ;
 ELet.    Exp4 ::= "let" Var "=" Exp ;
 ELetIn.  Exp3 ::= "let" Var "=" Exp "in" Exp ;
 EList.   Exp2 ::= "[" [ListEl] "]" ;

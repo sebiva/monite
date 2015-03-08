@@ -15,6 +15,7 @@ import Grammar.Abs
 import System.Process
 import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory, doesDirectoryExist )
 import System.IO
+import System.IO.Error
 
 import Control.Monad ( Monad, liftM )
 import Control.Applicative ( Applicative )
@@ -29,11 +30,6 @@ import qualified Data.Map as M
 newtype MoniteM a = Monite { runMonite :: StateT Env
                                             (ExceptT MoniteErr IO) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadState Env, MonadError MoniteErr)
-
-{-instance MonadError (MoniteM a) where-}
-  {-throwError = undefined-}
-  {-catchError = undefined-}
-
 
 -- | Monite shell environment, keep track of path and variables
 data Env = Env {
@@ -139,19 +135,37 @@ evalCmd c input output = case c of
     (i, o) <- evalCmd c2 (UseHandle h) output
     io $ removeFile fp -- Clean up the temporary file
     return (i, o)
-  (COut c' t)      -> do -- TODO: Catch errors when opening files
+  (COut c' t)      -> do
     f <- getFilename t
-    h <- io $ openFile f WriteMode
+    h <- openFile' f WriteMode
     (i, o) <- evalCmd c' input (UseHandle h)
     io $ hClose h
     return (i, o)
-  (CIn c' t)       -> do -- TODO: Catch errors when opening files
+  (CIn c' t)       -> do
     f <- getFilename t
     io $ putStrLn f
-    h <- io $ openFile f ReadMode
+    h <- openFile' f ReadMode
     (i, o) <- evalCmd c' (UseHandle h) output
     io $ hClose h
     return (i, o)
+
+-- | Opens a file in the specified mode, throwing an error if something goes
+-- wrong.
+openFile' :: FilePath -> IOMode -> MoniteM Handle
+openFile' f m = do
+  env <- get
+  mhandle <- io $ tryIOError (openFile f m)
+  case mhandle of
+    Left e  -> throwError (err env e)
+    Right h -> return h
+  where err env e = Err {
+            errPath = path env
+          , errCmd  = "File operation"
+          , errMsg  = "Error opening file: " ++ f ++ " : " ++ msg e }
+        msg e
+          | isAlreadyInUseError e = "The file is already open"
+          | isDoesNotExistError e = "The file does not exist"
+          | isPermissionError e   = "Permission denied"
 
 -- | Return a filename from a Text
 getFilename :: Text -> MoniteM FilePath
@@ -180,11 +194,11 @@ changeWorkingDirectory ts = do
   , errCmd = "cd " ++ concat command
   , errMsg = "Can't cd to: " ++ finalPath ++ " : it does not exist"
   }
-
   if not exists then throwError err else return ()
   modify (\env -> env { path = finalPath } )
   io $ setCurrentDirectory finalPath
   return ()
+
 -- | Modify the old path with the new. If new is a subdirectory, they are
 -- simply concatenated. If new is "..", the result is up one from "old".
 modifyPath :: FilePath -> FilePath -> FilePath
@@ -226,7 +240,12 @@ lookupVar :: Var -> MoniteM [String]
 lookupVar v = do
   env <- get
   case M.lookup v (vars env) of
-    Nothing -> undefined -- TODO: Define : 2015-03-02 - 20:52:25 (John)
+    Nothing -> do
+      env <- get
+      throwError $ Err {
+          errPath = path env
+        , errCmd  = show v -- TODO: Should we keep the command in the state to be able to print it?
+        , errMsg  = "Undefined variable: " ++ show v}
     Just v  -> return v
 
 -- | Run a command cmd with args in cwd with the provided input and output pipes
@@ -245,8 +264,8 @@ proc' cmd args cwd input output =
 
 -- | An empty environment
 emptyEnv :: IO Env
-emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John)
-              return $ Env M.empty (home ++ ['/']) -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John)
+emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
+              return $ Env M.empty (home ++ "/") -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
 
 -- | Convert a list of text to a list of string
 readText :: [Text] -> MoniteM [String]

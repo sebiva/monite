@@ -16,6 +16,7 @@ import System.Process
 import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory, doesDirectoryExist )
 import System.IO
 import System.IO.Error
+import System.FilePath ( isPathSeparator )
 
 import Control.Monad ( Monad, liftM )
 import Control.Applicative ( Applicative )
@@ -199,7 +200,8 @@ changeWorkingDirectory ts = do
         (t:_) -> return t
   [newPath] <- getText t
   env <- get
-  let finalPath = modifyPath (path env) newPath -- TODO: Check that the path exists
+  finalPath <- io $ buildPath (path env) newPath
+  {-let finalPath = modifyPath (path env) newPath -- TODO: Check that the path exists-}
   exists <- io (doesDirectoryExist finalPath)
 
   command <- readText ts
@@ -215,6 +217,7 @@ changeWorkingDirectory ts = do
 
 -- | Modify the old path with the new. If new is a subdirectory, they are
 -- simply concatenated. If new is "..", the result is up one from "old".
+-- -- TODO: Probably not needed anymore : 2015-03-08 - 23:07:44 (John)
 modifyPath :: FilePath -> FilePath -> FilePath
 modifyPath old new = case new of
   ('.':'.':[])  -> upDir old
@@ -223,10 +226,39 @@ modifyPath old new = case new of
   []            -> old
   ts            -> old ++ ts ++ if last ts /= '/' then "/" else ""
 
+-- | Builds a valid path from the old path and the new path
+buildPath :: FilePath -> FilePath -> IO FilePath
+buildPath old new = case new of
+  path@('/':ts) -> return $ path    -- if absolute, simply return the new path
+  ('~':path)    -> do               -- if ~ , find the home directory
+    home <- getHomeDirectory
+    return $ home ++ path
+  _             -> return $ fixPath (parsePath (old ++ new)) [] -- fix path
+
+-- | Given a parsed path, it will build a new path from the parsed path atoms
+fixPath :: [FilePath] -> FilePath -> FilePath
+fixPath [] path     = path ++ "/"
+fixPath (s:ss) path
+  | s == ""   = fixPath ss path-- TODO: Correct? : 2015-03-08 - 22:46:30 (John)
+  | s == "."  = fixPath ss path
+  | s == ".." = fixPath ss (upDir path)
+  | otherwise = fixPath ss (path ++ "/" ++ s)
+
+-- | Simply parse a path into a list of the parts separated by the path
+-- separator ('/')
+--
+-- E.g. "/path/to/some/dir/" -> ["path", "to", "some", "dir"]
+--
+parsePath :: FilePath -> [FilePath]
+parsePath []   = []
+parsePath path = (nxt path) : (parsePath (rst path))
+  where nxt = takeWhile (not . isPathSeparator ) . dropWhile (isPathSeparator)
+        rst = dropWhile (not . isPathSeparator) . dropWhile (isPathSeparator)
+
 -- | Go up one step from a valid filepath ('/' at the end).
 upDir :: FilePath -> FilePath
-upDir "/" = "/"
-upDir x   = reverse . dropWhile (/='/') . reverse . init $ x
+upDir [] = []
+upDir x   = reverse . dropWhile (=='/') . dropWhile (/='/') . reverse . init $ x
 
 -- | Create a new temporary file
 newTempFile :: MoniteM (FilePath, Handle)

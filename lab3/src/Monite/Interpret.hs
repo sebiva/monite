@@ -53,7 +53,7 @@ interpret s = do
   {-io $ putStrLn (show (myLexer s)) -- TODO : Debug-}
   case pProgram $ myLexer s of
     Ok tree -> do
-      io $ putStrLn (show tree)   --  TODO : Debug
+      {-io $ putStrLn (show tree)   --  TODO : Debug-}
       {-io $ putStrLn "--------------------------"-}
       {-io $ putStrLn (printTree tree)-}
       {-io $ putStrLn "--------------------------"-}
@@ -112,7 +112,7 @@ evalExp e input output = case e of
 extendEvalExp :: Var -> Exp -> Handle -> MoniteM ()
 extendEvalExp v e input = do
   evalExpToStr e input $ \res -> do
-    io $ putStrLn $ "extendEvalExp: " ++ (show res)
+    {-io $ putStrLn $ "extendEvalExp: " ++ (show res)-}
     updateVar v res               -- update env with the var v, and the result of e1
     return ()
 
@@ -122,11 +122,11 @@ extendEvalExp v e input = do
 evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
   (fp, h) <- newTempFile
-  io $ putStrLn $ "Writing to file: " ++ show e
+  {-io $ putStrLn $ "Writing to file: " ++ show e-}
   evalExp e input h -- Evaluate the expression with its output redirected to the temp file
   h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again. -- TODO : Check if this works without reopening, seems to crash with it now.
   ss <- io $ hGetContents h
-  io $ putStrLn $ "Read: " ++ ss
+  {-io $ putStrLn $ "Read: " ++ ss-}
   ret <- f (lines ss)
   io $ removeFile fp            -- Clean up the temporary file
   return ret
@@ -137,7 +137,7 @@ evalCmd :: Cmd -> Handle -> Handle -> MoniteM (Handle, Handle) -- String for tes
 evalCmd c input output = case c of
   (CText (b:ts))        -> do
     (s:ss) <- foldM (\ss t -> liftM (ss++) (replaceVars t)) [] (b:ts)  --TODO: Return a list of arguments
-    io $ putStrLn $ "Res: " ++ show (s:ss)
+    {-io $ putStrLn $ "Res: " ++ show (s:ss)-}
     case b of
      (TLit (Lit "cd")) -> do
         changeWorkingDirectory ts
@@ -191,8 +191,8 @@ parseVars :: String -> MoniteM String
 parseVars s = do
   if var == "" then return s else do
     ss <- lookupVar var
-    io $ putStrLn $ "Lookup: " ++ show ss
-    io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)
+    {-io $ putStrLn $ "Lookup: " ++ show ss-}
+    {-io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)-}
     return (before ++ intercalate " " ss ++ after)
   where before  = takeWhile (/='$') s
         var     = takeWhile valid (drop (length before + 1) s)

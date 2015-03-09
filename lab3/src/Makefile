@@ -4,6 +4,7 @@ all:
 	alex -g Grammar/Lex.x
 	rm Grammar/Lex.x
 	rm Grammar/Par.y
+	ghc Grammar/Test.hs
 
 clean:
 	-rm -f Grammar/*.log Grammar/*.aux Grammar/*.hi Grammar/*.o Grammar/*.dvi

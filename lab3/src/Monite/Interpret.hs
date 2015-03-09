@@ -131,7 +131,7 @@ evalExpToStr e input f = do
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
 evalCmd c input output = case c of
   (CText (b:ts))        -> do
-    (b:ts) <- foldM replaceVar [] (b:ts) -- TODO: Return a list of arguments
+    {-(b:ts) <- foldM replaceVar [] (b:ts) -- TODO: Return a list of arguments-}
     case b of
      (TId (Id "cd")) -> do
         changeWorkingDirectory ts

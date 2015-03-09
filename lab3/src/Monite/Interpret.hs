@@ -48,13 +48,13 @@ data MoniteErr = Err {
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> MoniteM Env
 interpret s = do
-  io $ putStrLn (show (myLexer s)) -- TODO : Debug
+  {-io $ putStrLn (show (myLexer s)) -- TODO : Debug-}
   case pProgram $ myLexer s of
     Ok tree -> do
-      io $ putStrLn (show tree)    -- TODO : Debug
-      io $ putStrLn "--------------------------"
-      io $ putStrLn (printTree tree)
-      io $ putStrLn "--------------------------"
+      {-io $ putStrLn (show tree)    -- TODO : Debug-}
+      {-io $ putStrLn "--------------------------"-}
+      {-io $ putStrLn (printTree tree)-}
+      {-io $ putStrLn "--------------------------"-}
 
       (eval tree)
       get :: MoniteM Env
@@ -68,7 +68,7 @@ interpret s = do
 eval :: Program -> MoniteM ()
 eval (PProg exps) = do
   env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
-  io $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)
+  {-io $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)-}
   mapM_ (\e -> evalExp' e Inherit Inherit) exps
 
 -- | Evaluate an expression, catching and printing any error that occurs.
@@ -91,7 +91,7 @@ evalExp e input output = case e of
     evalExp (ECompL e1 v es) input output -- keep evaluating the rest of the list comp expressions
   (EComp e1 v e2) -> do
     evalExpToStr e2 input $ \res -> do
-      io $ putStrLn (show res)
+      {-io $ putStrLn (show res)-}
       mapM_ (\s -> updateVar v [s] >> evalExp e1 input output) res
       eraseVar v
   (ELet v e) -> do
@@ -109,7 +109,7 @@ evalExp e input output = case e of
 extendEvalExp :: Var -> Exp -> StdStream -> MoniteM ()
 extendEvalExp v e input = do
   evalExpToStr e input $ \res -> do
-    io $ putStrLn (show res)
+    {-io $ putStrLn (show res)-}
     updateVar v res               -- update env with the var v, and the result of e1
     return ()
 
@@ -134,13 +134,16 @@ evalCmd c input output = case c of
     case b of
      (TLit (Lit "cd")) -> do
         changeWorkingDirectory ts
-        io $ putStrLn (show ts)
+        {-io $ putStrLn (show ts)-}
         return (input, output)
      _              -> do
-        io $ putStrLn $ "CMD: " ++ show c
+        {-io $ putStrLn $ "CMD: " ++ show c-}
         (s:ss) <- readText (b:ts)
         env       <- get
-        (i,o,_,p) <- io $ createProcess (proc' s ss (path env) input output)
+        pHandle <- io $ tryIOError $ createProcess (proc' s ss (path env) input output)
+        (i, o, _, p) <- case pHandle of
+          Left e  -> throwError $ (err env (s:ss))
+          Right h -> return h
         io $ waitForProcess p
         return (input, output)
   (CPipe c1 c2)     -> do
@@ -158,11 +161,16 @@ evalCmd c input output = case c of
     return (i, o)
   (CIn c' t)       -> do
     f <- getFilename t
-    io $ putStrLn f
+    {-io $ putStrLn f-}
     h <- openFile' f ReadMode
     (i, o) <- evalCmd c' (UseHandle h) output
     io $ hClose h
     return (i, o)
+  where err env c = Err {
+      errPath = path env
+    , errCmd  = "Process execution"
+    , errMsg  = "Error invalid command: " ++ (concat c)
+  }
 
 -- | Opens a file in the specified mode, throwing an error if something goes
 -- wrong.
@@ -245,7 +253,7 @@ updateVar :: Var -> [String] -> MoniteM ()
 updateVar v s = do
   modify (\env -> env { vars = M.insert v s (vars env) })
   env <- get
-  io $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)
+  {-io $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)-}
   return ()
 
 -- | Erase a var from the environment
@@ -288,7 +296,7 @@ emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 2
 -- | Convert a list of text to a list of string
 readText :: [Text] -> MoniteM [String]
 readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
-                 io $ putStrLn (show ss)
+                 {-io $ putStrLn (show ss)-}
                  return $ concat ss
 
 -- | Get the text as a list of strings from a literal. If it is a variable,

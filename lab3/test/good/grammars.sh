@@ -1,0 +1,12 @@
+ls ;
+cd ;
+x ;
+echo x ;
+x ;
+let x = ls in echo $x ;
+[a b c d] ;
+{ a : x <- [1,2,4,42,ls -l] } ;
+{ ls $x : x <- $xs } ;
+{ echo $x : x <- ls -l } ;
+let x = ls in { echo f : f <- $x } ;
+ls -l | wc ;

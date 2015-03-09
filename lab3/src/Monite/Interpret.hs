@@ -24,7 +24,7 @@ import Control.Monad.Except ( ExceptT, runExceptT, MonadError (..) )
 import Control.Monad.State.Lazy ( MonadState, StateT (..), evalStateT, get, modify )
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 
-import Data.List (intersperse)
+import Data.List (intersperse, intercalate)
 import qualified Data.Map as M
 
 -- | MoniteM monad which handles state, exceptions, and IO
@@ -169,7 +169,7 @@ evalCmd c input output = case c of
   where err env c = Err {
       errPath = path env
     , errCmd  = "Process execution"
-    , errMsg  = "Error invalid command: " ++ (concat c)
+    , errMsg  = "Error invalid command: " ++ (intercalate " " c)
   }
 
 -- | Opens a file in the specified mode, throwing an error if something goes

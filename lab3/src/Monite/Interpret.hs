@@ -128,7 +128,7 @@ evalExpToStr e input f = do
   ss <- io $ hGetContents h
   io $ putStrLn $ "Read: " ++ ss
   ret <- f (lines ss)
-  {-io $ removeFile fp            -- Clean up the temporary file-}
+  io $ removeFile fp            -- Clean up the temporary file
   return ret
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the

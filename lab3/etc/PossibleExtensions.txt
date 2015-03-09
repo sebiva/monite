@@ -1,0 +1,23 @@
+A more general completion function interface:
+=============================================
+We would like to be able to customize which Completion Func to run depending on
+which command/argument we are completing on the input line. E.g.
+
+  $> command file_argument flag_argument
+
+commandCompletionFunc:
+----------------------
+Should only look in the system $PATH variable, and suggest binaries as possible
+completions.
+
+fileArgCompletionFunc:
+----------------------
+Should work as the default completion function (completeFilename)
+in haskeline. That is, suggest completions depending on the directory the user
+is standing in.
+
+flagArgCompletionFunc:
+----------------------
+This function should be binary specific, i.e., depending on the command, read
+the commands documentation, and suggest possible completions for flags, options,
+etc.

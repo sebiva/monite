@@ -241,7 +241,7 @@ buildPath old new = case new of
   ('~':'/':path)    -> do               -- if ~ , find the home directory
     home <- liftM addTrailingPathSeparator getHomeDirectory
     return $ home ++ (dropTrailingPathSeparator path)
-  _             -> return $ fixPath (splitDirectories (old </> new)) []  -- fix path
+  _             -> return $ fixPath (splitDirectories (normalise (old </> new))) []  -- fix path
 
 -- | Given a split path, it will build a new path from the parsed path atoms,
 -- going up on "..".

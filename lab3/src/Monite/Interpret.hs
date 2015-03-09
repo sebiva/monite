@@ -38,6 +38,8 @@ data Env = Env {
   path:: FilePath
 } deriving (Show)
 
+type Var = String
+
 -- | Monite error
 data MoniteErr = Err {
   errPath :: FilePath,
@@ -51,7 +53,7 @@ interpret s = do
   {-io $ putStrLn (show (myLexer s)) -- TODO : Debug-}
   case pProgram $ myLexer s of
     Ok tree -> do
-      {-io $ putStrLn (show tree)    -- TODO : Debug-}
+      io $ putStrLn (show tree)   --  TODO : Debug
       {-io $ putStrLn "--------------------------"-}
       {-io $ putStrLn (printTree tree)-}
       {-io $ putStrLn "--------------------------"-}
@@ -69,10 +71,10 @@ eval :: Program -> MoniteM ()
 eval (PProg exps) = do
   env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
   {-io $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)-}
-  mapM_ (\e -> evalExp' e Inherit Inherit) exps
+  mapM_ (\e -> evalExp' e stdin stdout) exps
 
 -- | Evaluate an expression, catching and printing any error that occurs.
-evalExp' :: Exp -> StdStream -> StdStream -> MoniteM ()
+evalExp' :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp' e i o = catchError eval handle
   where eval       = evalExp e i o --runStateT evalExp e i o
         handle err = do
@@ -82,66 +84,69 @@ evalExp' e i o = catchError eval handle
 
 
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
-evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
+evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e input output = case e of
-  (ECompL e1 (Id i) []) -> eraseVar (Var i) >> return () -- erase var from env when done
-  (ECompL e1 (Id i) ((LExp e2):es)) -> do
-    extendEvalExp (Var i) e2 input             -- extend the environment with eval of e2
+  (ECompL e1 (Lit i) []) -> eraseVar i >> return () -- erase var from env when done
+  (ECompL e1 (Lit i) ((LExp e2):es)) -> do
+    extendEvalExp i e2 input             -- extend the environment with eval of e2
     evalExp e1 input output              -- eval e1 in new environment
-    evalExp (ECompL e1 (Id i) es) input output -- keep evaluating the rest of the list comp expressions
-  (EComp e1 (Id i) e2) -> do
+    evalExp (ECompL e1 (Lit i) es) input output -- keep evaluating the rest of the list comp expressions
+  (EComp e1 (Lit i) e2) -> do
     evalExpToStr e2 input $ \res -> do
       {-io $ putStrLn (show res)-}
-      mapM_ (\s -> updateVar (Var i) [s] >> evalExp e1 input output) res
-      eraseVar (Var i)
-  (ELet (Id i) e) -> do
-    extendEvalExp (Var i) e input              -- extend the environment with eval of e
-  (ELetIn (Id i) e1 e2) -> do
-    extendEvalExp (Var i) e1 input             -- extend the env with v := eval e1
+      mapM_ (\s -> updateVar i [s] >> evalExp e1 input output) res
+      eraseVar i
+  (ELet (Lit i) e) -> do
+    extendEvalExp i e input              -- extend the environment with eval of e
+  (ELetIn (Lit i) e1 e2) -> do
+    extendEvalExp i e1 input             -- extend the env with v := eval e1
     evalExp e2 input output              -- eval e2 in the updated environment
-    eraseVar (Var i)                     -- erase var from env
+    eraseVar i                           -- erase var from env
   (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
   (ECmd c) -> evalCmd c input output >> return ()
+  (EStr s) -> io $ hPutStrLn output s >> hClose output
 
 -- | Evaluate the expression with the stdout redirected to a temporary file, and
 -- extend the environment with the value of the evaluated expression assigned to
 -- the variable.
-extendEvalExp :: Var -> Exp -> StdStream -> MoniteM ()
+extendEvalExp :: Var -> Exp -> Handle -> MoniteM ()
 extendEvalExp v e input = do
   evalExpToStr e input $ \res -> do
-    {-io $ putStrLn (show res)-}
+    io $ putStrLn $ "extendEvalExp: " ++ (show res)
     updateVar v res               -- update env with the var v, and the result of e1
     return ()
 
 -- | Evaluate an expression, and then perform the given action f with the
 -- output of the expression as a list of strings as input. Uses a temporary
 -- file to store the output.
-evalExpToStr :: Exp -> StdStream -> ([String] -> MoniteM a) -> MoniteM a
+evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
   (fp, h) <- newTempFile
-  evalExp e input (UseHandle h) -- Evaluate the expression with its output redirected to the temp file
-  h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again.
+  io $ putStrLn $ "Writing to file: " ++ show e
+  evalExp e input h -- Evaluate the expression with its output redirected to the temp file
+  h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again. -- TODO : Check if this works without reopening, seems to crash with it now.
   ss <- io $ hGetContents h
+  io $ putStrLn $ "Read: " ++ ss
   ret <- f (lines ss)
-  io $ removeFile fp            -- Clean up the temporary file
+  {-io $ removeFile fp            -- Clean up the temporary file-}
   return ret
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
-evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
+evalCmd :: Cmd -> Handle -> Handle -> MoniteM (Handle, Handle) -- String for testing
 evalCmd c input output = case c of
   (CText (b:ts))        -> do
-    {-(b:ts) <- foldM replaceVar [] (b:ts) -- TODO: Return a list of arguments-}
+    (s:ss) <- foldM (\ss t -> liftM (ss++) (replaceVars t)) [] (b:ts)  --TODO: Return a list of arguments
+    io $ putStrLn $ "Res: " ++ show (s:ss)
     case b of
-     (TId (Id "cd")) -> do
+     (TLit (Lit "cd")) -> do
         changeWorkingDirectory ts
         {-io $ putStrLn (show ts)-}
         return (input, output)
      _              -> do
         {-io $ putStrLn $ "CMD: " ++ show c-}
-        (s:ss) <- readText (b:ts)
         env       <- get
-        pHandle <- io $ tryIOError $ createProcess (proc' s ss (path env) input output)
+        pHandle <- io $ tryIOError $ createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
         (i, o, _, p) <- case pHandle of
           Left e  -> throwError $ (err env (s:ss))
           Right h -> return h
@@ -149,22 +154,22 @@ evalCmd c input output = case c of
         return (input, output)
   (CPipe c1 c2)     -> do
     (fp, h) <- newTempFile
-    evalCmd c1 input (UseHandle h)
+    evalCmd c1 input h
     h <- reopenClosedFile fp
-    (i, o) <- evalCmd c2 (UseHandle h) output
+    (i, o) <- evalCmd c2 h output
     io $ removeFile fp -- Clean up the temporary file
     return (i, o)
   (COut c' t)      -> do
     f <- getFilename t
     h <- openFile' f WriteMode
-    (i, o) <- evalCmd c' input (UseHandle h)
+    (i, o) <- evalCmd c' input h
     io $ hClose h
     return (i, o)
   (CIn c' t)       -> do
     f <- getFilename t
     {-io $ putStrLn f-}
     h <- openFile' f ReadMode
-    (i, o) <- evalCmd c' (UseHandle h) output
+    (i, o) <- evalCmd c' h output
     io $ hClose h
     return (i, o)
   where err env c = Err {
@@ -173,16 +178,26 @@ evalCmd c input output = case c of
     , errMsg  = "Error invalid command: " ++ (intercalate " " c)
   }
 
-replaceVar :: Text -> MoniteM [Text]
-replaceVar = undefined
+replaceVars :: Text -> MoniteM [String]
+replaceVars (TLit (Lit i)) = liftM words (parseVars i)
 
-replace :: String -> String -> String -> String
-replace "" _ _ = ""
-replace s  m r
-  | take (length m) s == m = r ++ replace (drop (length m) s) m r
+{-replace :: String -> String -> String -> String-}
+{-replace "" _ _ = ""-}
+{-replace s  m r-}
+  {-| take (length m) s == m = r ++ replace (drop (length m) s) m r-}
 
-parseVars :: Text -> [String]
-parseVars = undefined
+-- | Replace all $var in a string with their definitions in the environment
+parseVars :: String -> MoniteM String
+parseVars s = do
+  if var == "" then return s else do
+    ss <- lookupVar var
+    io $ putStrLn $ "Lookup: " ++ show ss
+    io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)
+    return (before ++ intercalate " " ss ++ after)
+  where before  = takeWhile (/='$') s
+        var     = takeWhile valid (drop (length before + 1) s)
+        after   = drop (length before + 1 + length var) s
+        valid x = x `elem` ['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z'] ++ ['_']
 
 -- | Opens a file in the specified mode, throwing an error if something goes
 -- wrong.
@@ -204,12 +219,7 @@ openFile' f m = do
 
 -- | Return a filename from a Text
 getFilename :: Text -> MoniteM FilePath
-getFilename t =
-  case t of
-    (TLit (Lit l)) -> return l
-    (TVar (Var v)) -> do
-      ss <- lookupVar (Var (tail v))
-      return $ concat ss
+getFilename (TLit (Lit l)) = parseVars l
 
 -- | Change the working directory of the shell to the head of the provided list
 -- of arguments. If the list is empty, the home directory is used.
@@ -314,9 +324,7 @@ readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) 
 -- | Get the text as a list of strings from a literal. If it is a variable,
 -- the value is looked up in the environment.
 getText :: Text -> MoniteM [String]
-getText (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
-getText (TVar (Var v))  = lookupVar (Var (tail v))  -- :: Text -> MoniteM [String]
-getText (TId (Id i))    = return [i]
+getText t = replaceVars t   -- TODO: Remove, almost the same as getFilename
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a

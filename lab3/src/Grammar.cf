@@ -2,10 +2,10 @@ comment "#" ;
 
 PProg.   Program ::= [Exp] ;
 
-ECompL.  Exp5 ::= "{" Exp ":" Var "<-" "[" [ListEl] "]" "}" ;
-EComp.   Exp5 ::= "{" Exp ":" Var "<-" Exp "}" ;
-ELet.    Exp4 ::= "let" Var "=" Exp ;
-ELetIn.  Exp3 ::= "let" Var "=" Exp "in" Exp ;
+ECompL.  Exp5 ::= "{" Exp ":" Id "<-" "[" [ListEl] "]" "}" ;
+EComp.   Exp5 ::= "{" Exp ":" Id "<-" Exp "}" ;
+ELet.    Exp4 ::= "let" Id "=" Exp ;
+ELetIn.  Exp3 ::= "let" Id "=" Exp "in" Exp ;
 EList.   Exp2 ::= "[" [ListEl] "]" ;
 ECmd.    Exp1 ::= Cmd ;
 separator Exp ";" ;
@@ -23,10 +23,12 @@ coercions Cmd 4 ;
 
 TLit.    Text ::= Lit ;
 TVar.    Text ::= Var ;
+TId.     Text ::= Id ;
 separator nonempty Text "" ;
 
 {-token Lit (char - ('[' | ']') (char - ('[' | ']'))*) ;-}
-token Lit (char - [",()[]<>|{}$;:\t\n "] (char - [",()[]<>|{}$;:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
-token Var ('$' (letter | digit | '_')*) ;
+token Var ('$' (letter | digit | '_') (letter | digit | '_')*) ;
+token Id ((letter | digit | '_') (letter | digit | '_')*) ;
+token Lit (char - [",()[]<>|{};:\t\n "] (char - [",()[]<>|{};:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
 {-token Var (letter (digit | '_' | letter)*) ;-}
 

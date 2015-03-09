@@ -18,7 +18,7 @@ import System.IO
 import System.IO.Error
 import System.FilePath
 
-import Control.Monad ( Monad, liftM )
+import Control.Monad ( Monad, liftM, foldM )
 import Control.Applicative ( Applicative )
 import Control.Monad.Except ( ExceptT, runExceptT, MonadError (..) )
 import Control.Monad.State.Lazy ( MonadState, StateT (..), evalStateT, get, modify )
@@ -84,22 +84,22 @@ evalExp' e i o = catchError eval handle
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> StdStream -> StdStream -> MoniteM ()
 evalExp e input output = case e of
-  (ECompL e1 v []) -> eraseVar v >> return () -- erase var from env when done
-  (ECompL e1 v ((LExp e2):es)) -> do
-    extendEvalExp v e2 input             -- extend the environment with eval of e2
+  (ECompL e1 (Id i) []) -> eraseVar (Var i) >> return () -- erase var from env when done
+  (ECompL e1 (Id i) ((LExp e2):es)) -> do
+    extendEvalExp (Var i) e2 input             -- extend the environment with eval of e2
     evalExp e1 input output              -- eval e1 in new environment
-    evalExp (ECompL e1 v es) input output -- keep evaluating the rest of the list comp expressions
-  (EComp e1 v e2) -> do
+    evalExp (ECompL e1 (Id i) es) input output -- keep evaluating the rest of the list comp expressions
+  (EComp e1 (Id i) e2) -> do
     evalExpToStr e2 input $ \res -> do
       {-io $ putStrLn (show res)-}
-      mapM_ (\s -> updateVar v [s] >> evalExp e1 input output) res
-      eraseVar v
-  (ELet v e) -> do
-    extendEvalExp v e input              -- extend the environment with eval of e
-  (ELetIn v e1 e2) -> do
-    extendEvalExp v e1 input             -- extend the env with v := eval e1
+      mapM_ (\s -> updateVar (Var i) [s] >> evalExp e1 input output) res
+      eraseVar (Var i)
+  (ELet (Id i) e) -> do
+    extendEvalExp (Var i) e input              -- extend the environment with eval of e
+  (ELetIn (Id i) e1 e2) -> do
+    extendEvalExp (Var i) e1 input             -- extend the env with v := eval e1
     evalExp e2 input output              -- eval e2 in the updated environment
-    eraseVar v                           -- erase var from env
+    eraseVar (Var i)                     -- erase var from env
   (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
   (ECmd c) -> evalCmd c input output >> return ()
 
@@ -130,9 +130,10 @@ evalExpToStr e input f = do
 -- resulting pipes (may be redirected).
 evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
 evalCmd c input output = case c of
-  (CText (b:ts))        ->
+  (CText (b:ts))        -> do
+    {-(b:ts) <- foldM replaceVar [] (b:ts) -- TODO: Return a list of arguments-}
     case b of
-     (TLit (Lit "cd")) -> do
+     (TId (Id "cd")) -> do
         changeWorkingDirectory ts
         {-io $ putStrLn (show ts)-}
         return (input, output)
@@ -172,6 +173,17 @@ evalCmd c input output = case c of
     , errMsg  = "Error invalid command: " ++ (intercalate " " c)
   }
 
+replaceVar :: Text -> MoniteM [Text]
+replaceVar = undefined
+
+replace :: String -> String -> String -> String
+replace "" _ _ = ""
+replace s  m r
+  | take (length m) s == m = r ++ replace (drop (length m) s) m r
+
+parseVars :: Text -> [String]
+parseVars = undefined
+
 -- | Opens a file in the specified mode, throwing an error if something goes
 -- wrong.
 openFile' :: FilePath -> IOMode -> MoniteM Handle
@@ -195,8 +207,8 @@ getFilename :: Text -> MoniteM FilePath
 getFilename t =
   case t of
     (TLit (Lit l)) -> return l
-    (TVar v) -> do
-      ss <- lookupVar v
+    (TVar (Var v)) -> do
+      ss <- lookupVar (Var (tail v))
       return $ concat ss
 
 -- | Change the working directory of the shell to the head of the provided list
@@ -303,7 +315,8 @@ readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) 
 -- the value is looked up in the environment.
 getText :: Text -> MoniteM [String]
 getText (TLit (Lit s))  = return [s]   -- :: Text -> MoniteM [String]
-getText (TVar v)        = lookupVar v  -- :: Text -> MoniteM [String]
+getText (TVar (Var v))  = lookupVar (Var (tail v))  -- :: Text -> MoniteM [String]
+getText (TId (Id i))    = return [i]
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a

@@ -187,10 +187,56 @@ a try, but, should we realise early that this is not feasible within the limited
 time-frame of this course, we will instead go with the TAs recommendation and
 focus on the haskeline library itself.
 
-%\section{Part II}
+\section{Part II}
 
-%\subsection{Task 1 - Writing code}
+\subsection{Task 1 - Writing code}
+\textbf{Modification / extension}: Show how the library could be changed to improve it in
+some aspect, or extend the library with some useful feature. Implementing the
+suggested feature is of course the best thing, but since this is a short project
+we understand if the result is limited to a partial solution or even a sketch of
+the implementation along with a description (in your report) of what
+difficulties you faced when trying to implement it.
 
-%\subsection{Task 2 - Documentation}
+\textbf{Advanced usage / tutorial}: Show some examples of what the library can be used
+for. The examples must demonstrate a deep understanding of the library (or part
+of it). Note: This task is potentially much simpler than the other two. Making a
+good tutorial is enough for a passing grade on this assignment, but is unlikely
+to yield a higher grade.
+
+\subsection{Task 2 - Documentation}
+Haskeline is a user interface used to handle line input for command-line
+programs. It is primarily used to enable a rich editing interface when entering
+input on the command line, for example, functionality such as Emcas- and
+Vim-Mode is present by default.
+
+It is also highly customizable, as the user of the library can define their own
+'completion functions', which are basically the function that is used
+intelligently complete a command that is being entered on the command-line.
+
+\subsubsection{Description of library interface}
+Haskeline provides a simple, and easy to use interface. The documentation for
+this interface is good, and we will therefore give a brief summary of how to use
+it, and what functionality is available to the application programmer.
+
+\subsubsection{Settings}
+The application programmer has a couple of settings available. It is possible to
+set how history should be handeled, i.e., which history file to use, and if
+history should be automatically added to the history file. History in this
+context is all non-empty lines that has been entered into the command-line of
+the application.
+
+The more interesting setting is the custom 'completion function', which allows
+the application programmer to decide how the input should be completed.
+
+\subsection{Preferences}
+Haskeline also provides some basic functionality regarding preferences, which by
+default is read from the file $\mathtt{\sim}$\textit{/.haskeline}. This allows the end user to
+configure the application to his/her liking. For example:
+
+\begin{verbatim}
+  editMode: Vi
+  completionType: MenuCompletion
+  maxhistorysize: Just 40
+\end{verbatim}
 
 \end{document}

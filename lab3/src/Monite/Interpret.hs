@@ -90,10 +90,10 @@ evalExp' e i o = catchError eval handle
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e input output = case e of
-  (ECompL e1 (Lit i) []) -> eraseVar i -- erase var from env when done
+  (ECompL e1 (Lit i) []) -> eraseVar i   -- erase var from env when done
   (ECompL e1 (Lit i) ((LExp (Lit s)):ss)) -> do
     -- Treat the literals as pure strings
-    updateVar i [s]                        -- extend the environment with eval of e2
+    updateVar i [s]                      -- extend the environment with eval of e2
     evalExp e1 input output              -- eval e1 in new environment
     evalExp (ECompL e1 (Lit i) ss) input output -- keep evaluating the rest of the list comp.
   (EComp e1 (Lit i) e2) -> do
@@ -108,9 +108,10 @@ evalExp e input output = case e of
     eraseVar i                           -- erase var from env
   (EList []) -> io $ hFlush output
   (EList ((LExp (Lit l)):es)) -> do
+    -- Treat list elements as pure strings
     io $ hPutStrLn output l
-    evalExp (EList es) input output -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
-  (ECmd c) -> evalCmd c input output >> return ()
+    evalExp (EList es) input output
+  (ECmd c) -> evalCmd c input output
   (EStr s) -> io $ hPutStrLn output s >> hFlush output
 
 -- | Evaluate the expression with the stdout redirected to a temporary file, and
@@ -118,65 +119,58 @@ evalExp e input output = case e of
 -- the variable.
 extendEvalExp :: Var -> Exp -> Handle -> MoniteM ()
 extendEvalExp v e input = do
-  evalExpToStr e input $ \res -> do
-    {-io $ putStrLn $ "extendEvalExp: " ++ (show res)-} --TODO: Debug
-    updateVar v res               -- update env with the var v, and the result of e1
-    return ()
+  evalExpToStr e input $ updateVar v
 
 -- | Evaluate an expression, and then perform the given action f with the
 -- output of the expression as a list of strings as input.
 evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
-  (i,o) <- io createPipe
+  (i, o) <- io createPipe
   evalExp e input o -- Evaluate the expression with its output redirected to the pipe
-  io $ hClose o -- Close the output end of the pipe to read from it
+  {-io $ hClose o -- Close the output end of the pipe to read from it-}
   ss <- io $ hGetContents i
+  closePipe (i, o)
   f (lines ss)
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
-evalCmd :: Cmd -> Handle -> Handle -> MoniteM (Handle, Handle) -- String for testing
+evalCmd :: Cmd -> Handle -> Handle -> MoniteM ()
 evalCmd c input output = case c of
-  (CText (b:ts))        -> do
-    (s:ss) <- foldM (\ss t -> liftM (ss++) (replaceVars t)) [] (b:ts)  --TODO: Return a list of arguments
-    {-io $ putStrLn $ "Res: " ++ show (s:ss)-} -- TODO: Debug
-    case b of
-     (Lit "cd") -> do
-        changeWorkingDirectory ts
-        {-io $ putStrLn (show ts)-} -- TODO: Debug
-        return (input, output)
-     _              -> runCmd (s:ss) input output
-  (CPipe c1 c2)     -> do
-    (i, o) <- io createPipe
-    (_, pipe) <- evalCmd c1 input o
-    {-io $ hClose o-}
-    evalCmd c2 i output
-  (COut c' t)      -> do
-    f <- getFilename t
-    h <- openFile' f WriteMode
-    (i, o) <- evalCmd c' input h
-    io $ hClose h
-    return (i, o)
-  (CIn c' t)       -> do
-    f <- getFilename t
-    h <- openFile' f ReadMode
-    (i, o) <- evalCmd c' h output
-    io $ hClose h
-    return (i, o)
+  (CText (b:ts)) -> do
+                      ss <- replaceVarss (b:ts)
+                      {-io $ putStrLn $ "Res: " ++ show (ss) -- TODO: Debug-}
+                      case b of
+                        (Lit "cd") -> changeWorkingDirectory ts
+                        _          -> runCmd ss input output
+  (CPipe c1 c2)  -> do
+                      (i, o) <- io createPipe
+                      evalCmd c1 input o
+                      {-io $ hClose o-}
+                      evalCmd c2 i output
+                      closePipe (i, o)
+  (COut c' t)    -> do
+                      f <- getFilename t
+                      h <- openFile' f WriteMode
+                      evalCmd c' input h
+                      io $ hClose h
+  (CIn c' t)     -> do
+                      f <- getFilename t
+                      h <- openFile' f ReadMode
+                      evalCmd c' h output
+                      io $ hClose h
 
 -- | Runs the command as a process, with the first element as the binary and
 -- the rest as arguments.
-runCmd :: [String] -> Handle -> Handle -> MoniteM (Handle, Handle)
+runCmd :: [String] -> Handle -> Handle -> MoniteM ()
+runCmd []     input output = return ()
 runCmd (s:ss) input output = do
   env <- get
   let run = createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
   -- Catch any errors that occur while running the process, and throw them as
   -- Monite errors instead so they can be cought and printed properly.
   eErrTup <- io $ tryIOError $ run
-  (i, o, _, p) <- case eErrTup of
-    Left e  -> do
-      io $ putStrLn (show e)
-      throwError $ (err env (s:ss))
+  (_, _, _, p) <- case eErrTup of
+    Left e  -> throwError $ (err env (s:ss))
     Right h -> return h
 
   -- Abort the command if Ctrl-C is pressed while it is being executed.
@@ -186,20 +180,24 @@ runCmd (s:ss) input output = do
     return Nothing
   case me of
     -- No error, return the correct pipes
-    Nothing -> return ( if i == Nothing then input  else fromJust i
-                      , if o == Nothing then output else fromJust o)
+    Nothing -> return ()
     -- Error, terminate the process and wait for it to exit to avoid zombies
     Just e  -> do io $ terminateProcess p
                   io $ waitForProcess p
                   io $ putStrLn e
-                  return (input, output)
   where handl p = handleInterrupt (return $ Just "\nCommand aborted") p
         err env c = Err { errPath = path env
                         , errCmd  = "Process execution"
                         , errMsg  = "Invalid command: " ++ (intercalate " " c)
                         }
 
+-- | Close both ends of a pipe
+closePipe :: (Handle, Handle) -> MoniteM ()
+closePipe (i, o) = io $ hClose i >> hClose o
 
+-- | Replace all variables in a list of literals with their values
+replaceVarss :: [Lit] -> MoniteM [String]
+replaceVarss = foldM (\ss t -> liftM (ss++) (replaceVars t)) []
 
 -- | Replace all variables in a literal with their values
 replaceVars :: Lit -> MoniteM [String]

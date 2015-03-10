@@ -44,11 +44,11 @@ inputLoop env = do
     loop :: Env -> InputT IO ()
     loop env = do
       let prompt = path env -- TODO: Makeup? : 2015-03-03 - 16:52:39 (John)
-      minput <- handle (\Interrupt -> return $ Just "") (getInputLine ("λ> "))                 -- get user command
+      minput <- handleInterrupt (return $ Just "") (getInputLine ("λ> "))                 -- get user command
       case minput of
         Nothing -> return ()                      -- nothing entered
         Just "quit" -> return ()                  -- quit the shell loop
-        Just input -> do env <- liftIO $ run (interpret input) env -- interpret user command
+        Just input -> do env <- withInterrupt $ liftIO $ run (interpret input) env -- interpret user command
                          loop env
 
 -- | Run the MoniteM monad, with a given environment

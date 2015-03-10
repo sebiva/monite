@@ -143,22 +143,27 @@ evalCmd c input output = case c of
         {-io $ putStrLn (show ts)-} -- TODO: Debug
         return (input, output)
      _              -> do
-        {-io $ putStrLn $ "CMD: " ++ show c-} -- TODO: Debug
-
-
-        -- TODO: Handle interrupts!
-        --hand p = withInterrupt $ handle (\Interrupt -> (liftIO $ putStrLn $ "Aborting command...\n") >> loop env) p
-        env       <- get
-        eErrTup <- io $ tryIOError $ createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
+        env <- get
+        let run = createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
+        eErrTup <- io $ tryIOError $ run
         (i, o, _, p) <- case eErrTup of
           Left e  -> do
             io $ putStrLn (show e)
             throwError $ (err env (s:ss))
           Right h -> return h
-        io $ waitForProcess p
-        return ( if i == Nothing then input  else fromJust i
-               , if o == Nothing then output else fromJust o)
-      where handl p = handle (\Interrupt -> return (Left "Command aborted")) p
+
+        -- | Abort the command if Ctrl-C is pressed while it is being executed.
+        me <- io $ runInputT defaultSettings $ handl $ withInterrupt $ do
+          liftIO $ waitForProcess p
+          return Nothing
+        case me of
+          Nothing -> return ( if i == Nothing then input  else fromJust i
+                            , if o == Nothing then output else fromJust o)
+          Just e  -> do io $ terminateProcess p
+                        io $ waitForProcess p
+                        io $ putStrLn e
+                        return (input, output)
+      where handl p = handleInterrupt (return $ Just "\nCommand aborted") p
 
   (CPipe c1 c2)     -> do
     {-io $ putStrLn "Before pipe"-}

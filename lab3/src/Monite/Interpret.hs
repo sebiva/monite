@@ -106,9 +106,12 @@ evalExp e input output = case e of
     extendEvalExp i e1 input             -- extend the env with v := eval e1
     evalExp e2 input output              -- eval e2 in the updated environment
     eraseVar i                           -- erase var from env
-  (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
+  (EList []) -> io $ hFlush output
+  (EList ((LExp (Lit l)):es)) -> do
+    io $ hPutStrLn output l
+    evalExp (EList es) input output -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
   (ECmd c) -> evalCmd c input output >> return ()
-  (EStr s) -> io $ hPutStrLn output s
+  (EStr s) -> io $ hPutStrLn output s >> hFlush output
 
 -- | Evaluate the expression with the stdout redirected to a temporary file, and
 -- extend the environment with the value of the evaluated expression assigned to
@@ -121,12 +124,12 @@ extendEvalExp v e input = do
     return ()
 
 -- | Evaluate an expression, and then perform the given action f with the
--- output of the expression as a list of strings as input. Uses a temporary
--- file to store the output.
+-- output of the expression as a list of strings as input.
 evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
   (i,o) <- io createPipe
-  evalExp e input o -- Evaluate the expression with its output redirected to the temp file
+  evalExp e input o -- Evaluate the expression with its output redirected to the pipe
+  io $ hClose o -- Close the output end of the pipe to read from it
   ss <- io $ hGetContents i
   f (lines ss)
 
@@ -144,9 +147,10 @@ evalCmd c input output = case c of
         return (input, output)
      _              -> runCmd (s:ss) input output
   (CPipe c1 c2)     -> do
-    ps <- io createPipe
-    (_, pipe) <- evalCmd c1 input (snd ps)
-    evalCmd c2 pipe output
+    (i, o) <- io createPipe
+    (_, pipe) <- evalCmd c1 input o
+    {-io $ hClose o-}
+    evalCmd c2 i output
   (COut c' t)      -> do
     f <- getFilename t
     h <- openFile' f WriteMode

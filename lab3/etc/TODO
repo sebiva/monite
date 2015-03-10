@@ -1,6 +1,12 @@
 --J Look at the testsuite for the grammar
 
-* Implement proper interrupt handling
+S Implement proper interrupt handling
+
+* Abort the whole command on Ctrl - C
+  sleep 5 ; ls
+  should not run ls
+
+* Look at cleaning up and closing file descriptors
 
 J Read the $PATH from a conf
 J Add vim/emacs - mode to the conf - wrapper for .haskeline

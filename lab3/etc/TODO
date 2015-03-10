@@ -1,0 +1,13 @@
+--J Look at the testsuite for the grammar
+
+* Implement proper interrupt handling
+
+J Read the $PATH from a conf
+J Add vim/emacs - mode to the conf - wrapper for .haskeline
+
+JS Look at extending haskeline with user-defined completion functions
+
+--S Write a parser for variables in Interpret : DONE
+--S Look at removing Var and Id and only keep Lit in the grammar : DONE
+--J Look at extending the shell testsuite : DONE
+* Remove knob : DONE

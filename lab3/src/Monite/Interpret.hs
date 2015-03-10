@@ -108,7 +108,7 @@ evalExp e input output = case e of
     eraseVar i                           -- erase var from env
   (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
   (ECmd c) -> evalCmd c input output >> return ()
-  (EStr s) -> io $ hPutStrLn output s >> hClose output
+  (EStr s) -> io $ hPutStrLn output s
 
 -- | Evaluate the expression with the stdout redirected to a temporary file, and
 -- extend the environment with the value of the evaluated expression assigned to
@@ -142,42 +142,11 @@ evalCmd c input output = case c of
         changeWorkingDirectory ts
         {-io $ putStrLn (show ts)-} -- TODO: Debug
         return (input, output)
-     _              -> do
-        env <- get
-        let run = createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
-        eErrTup <- io $ tryIOError $ run
-        (i, o, _, p) <- case eErrTup of
-          Left e  -> do
-            io $ putStrLn (show e)
-            throwError $ (err env (s:ss))
-          Right h -> return h
-
-        -- | Abort the command if Ctrl-C is pressed while it is being executed.
-        me <- io $ runInputT defaultSettings $ handl $ withInterrupt $ do
-          liftIO $ waitForProcess p
-          return Nothing
-        case me of
-          Nothing -> return ( if i == Nothing then input  else fromJust i
-                            , if o == Nothing then output else fromJust o)
-          Just e  -> do io $ terminateProcess p
-                        io $ waitForProcess p
-                        io $ putStrLn e
-                        return (input, output)
-      where handl p = handleInterrupt (return $ Just "\nCommand aborted") p
-
+     _              -> runCmd (s:ss) input output
   (CPipe c1 c2)     -> do
-    {-io $ putStrLn "Before pipe"-}
-    {-k <- K.newKnob (read "PipeKnob")-}
-    {-h <- K.newFileHandle k "PipeKnob" ReadWriteMode-}
-    {-io $ putStrLn "Mid pipe"-}
     ps <- io createPipe
     (_, pipe) <- evalCmd c1 input (snd ps)
-    {-h <- K.newFileHandle k "PipeKnob" ReadMode-}
-    {-io $ putStrLn "After pipe"-}
-    {-h <- reopenClosedFile fp-}
     evalCmd c2 pipe output
-    {-io $ removeFile fp -- Clean up the temporary file-}
-    {-return (i, o)-}
   (COut c' t)      -> do
     f <- getFilename t
     h <- openFile' f WriteMode
@@ -190,12 +159,45 @@ evalCmd c input output = case c of
     (i, o) <- evalCmd c' h output
     io $ hClose h
     return (i, o)
-  where err env c = Err {
-      errPath = path env
-    , errCmd  = "Process execution"
-    , errMsg  = "Error invalid command: " ++ (intercalate " " c)
-  }
 
+-- | Runs the command as a process, with the first element as the binary and
+-- the rest as arguments.
+runCmd :: [String] -> Handle -> Handle -> MoniteM (Handle, Handle)
+runCmd (s:ss) input output = do
+  env <- get
+  let run = createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
+  -- Catch any errors that occur while running the process, and throw them as
+  -- Monite errors instead so they can be cought and printed properly.
+  eErrTup <- io $ tryIOError $ run
+  (i, o, _, p) <- case eErrTup of
+    Left e  -> do
+      io $ putStrLn (show e)
+      throwError $ (err env (s:ss))
+    Right h -> return h
+
+  -- Abort the command if Ctrl-C is pressed while it is being executed.
+  -- Must use the InputT monad in order to use withInterrupt.
+  me <- io $ runInputT defaultSettings $ handl $ withInterrupt $ do
+    liftIO $ waitForProcess p
+    return Nothing
+  case me of
+    -- No error, return the correct pipes
+    Nothing -> return ( if i == Nothing then input  else fromJust i
+                      , if o == Nothing then output else fromJust o)
+    -- Error, terminate the process and wait for it to exit to avoid zombies
+    Just e  -> do io $ terminateProcess p
+                  io $ waitForProcess p
+                  io $ putStrLn e
+                  return (input, output)
+  where handl p = handleInterrupt (return $ Just "\nCommand aborted") p
+        err env c = Err { errPath = path env
+                        , errCmd  = "Process execution"
+                        , errMsg  = "Invalid command: " ++ (intercalate " " c)
+                        }
+
+
+
+-- | Replace all variables in a literal with their values
 replaceVars :: Lit -> MoniteM [String]
 replaceVars (Lit i) = liftM words (parseVars i)
 

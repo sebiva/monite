@@ -1,9 +1,9 @@
-S Write a parser for variables in Interpret
+--S Write a parser for variables in Interpret
 
-S Look at removing Var and Id and only keep Lit in the grammar
+--S Look at removing Var and Id and only keep Lit in the grammar
 
-J Look at the testsuite for the grammar
+--J Look at the testsuite for the grammar
 
-J Look at extending the shell testsuite
+--J Look at extending the shell testsuite
 
 JS Look at extending haskeline with user-defined completion functions

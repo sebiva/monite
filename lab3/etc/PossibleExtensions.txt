@@ -21,3 +21,13 @@ flagArgCompletionFunc:
 This function should be binary specific, i.e., depending on the command, read
 the commands documentation, and suggest possible completions for flags, options,
 etc.
+
+
+
+
+
+
+-------------------------------------------------------------------------------
+import System.FilePath
+
+getSearchPath :: IO [FilePath] -- seems promising

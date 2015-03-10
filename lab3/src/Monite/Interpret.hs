@@ -17,6 +17,8 @@ import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory, doe
 import System.IO
 import System.IO.Error
 import System.FilePath
+import qualified Data.Knob as K
+import qualified Data.ByteString as B
 
 import Control.Monad ( Monad, liftM, foldM )
 import Control.Applicative ( Applicative )
@@ -26,6 +28,7 @@ import Control.Monad.IO.Class ( liftIO, MonadIO )
 
 import Data.List (intersperse, intercalate)
 import qualified Data.Map as M
+import Data.Maybe (fromJust)
 
 -- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
@@ -103,7 +106,7 @@ evalExp e input output = case e of
     evalExp e2 input output              -- eval e2 in the updated environment
     eraseVar i                           -- erase var from env
   (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
-  (ECmd c) -> evalCmd c input output >> return ()
+  (ECmd c) -> evalCmd c (UseHandle input) (UseHandle output) >> return ()
   (EStr s) -> io $ hPutStrLn output s >> hClose output
 
 -- | Evaluate the expression with the stdout redirected to a temporary file, and
@@ -121,19 +124,22 @@ extendEvalExp v e input = do
 -- file to store the output.
 evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
-  (fp, h) <- newTempFile
+  -- TODO: Remove knob!
+  io $ putStrLn "Before pipe"
+  k <- K.newKnob (B.pack [])
+  h <- K.newFileHandle k "StrKnob" WriteMode
   {-io $ putStrLn $ "Writing to file: " ++ show e-} -- TODO: Debug
   evalExp e input h -- Evaluate the expression with its output redirected to the temp file
-  h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again. -- TODO : Check if this works without reopening, seems to crash with it now.
+  h <- K.newFileHandle k "StrKnob" ReadMode
+  io $ putStrLn "After pipe"
   ss <- io $ hGetContents h
   {-io $ putStrLn $ "Read: " ++ ss-} -- TODO: Debug
   ret <- f (lines ss)
-  io $ removeFile fp            -- Clean up the temporary file
   return ret
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
-evalCmd :: Cmd -> Handle -> Handle -> MoniteM (Handle, Handle) -- String for testing
+evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
 evalCmd c input output = case c of
   (CText (b:ts))        -> do
     (s:ss) <- foldM (\ss t -> liftM (ss++) (replaceVars t)) [] (b:ts)  --TODO: Return a list of arguments
@@ -146,29 +152,37 @@ evalCmd c input output = case c of
      _              -> do
         {-io $ putStrLn $ "CMD: " ++ show c-} -- TODO: Debug
         env       <- get
-        pHandle <- io $ tryIOError $ createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
-        (i, o, _, p) <- case pHandle of
-          Left e  -> throwError $ (err env (s:ss))
+        eErrTup <- io $ tryIOError $ createProcess (proc' s ss (path env) input output)
+        (i, o, _, p) <- case eErrTup of
+          Left e  -> do
+            io $ putStrLn (show e)
+            throwError $ (err env (s:ss))
           Right h -> return h
         io $ waitForProcess p
-        return (input, output)
+        return ( if i == Nothing then input  else UseHandle (fromJust i)
+               , if o == Nothing then output else UseHandle (fromJust o) )
   (CPipe c1 c2)     -> do
-    (fp, h) <- newTempFile
-    evalCmd c1 input h
-    h <- reopenClosedFile fp
-    (i, o) <- evalCmd c2 h output
-    io $ removeFile fp -- Clean up the temporary file
-    return (i, o)
+    {-io $ putStrLn "Before pipe"-}
+    {-k <- K.newKnob (read "PipeKnob")-}
+    {-h <- K.newFileHandle k "PipeKnob" ReadWriteMode-}
+    {-io $ putStrLn "Mid pipe"-}
+    (_, pipe) <- evalCmd c1 input CreatePipe
+    {-h <- K.newFileHandle k "PipeKnob" ReadMode-}
+    {-io $ putStrLn "After pipe"-}
+    {-h <- reopenClosedFile fp-}
+    evalCmd c2 pipe output
+    {-io $ removeFile fp -- Clean up the temporary file-}
+    {-return (i, o)-}
   (COut c' t)      -> do
     f <- getFilename t
     h <- openFile' f WriteMode
-    (i, o) <- evalCmd c' input h
+    (i, o) <- evalCmd c' input (UseHandle h)
     io $ hClose h
     return (i, o)
   (CIn c' t)       -> do
     f <- getFilename t
     h <- openFile' f ReadMode
-    (i, o) <- evalCmd c' h output
+    (i, o) <- evalCmd c' (UseHandle h) output
     io $ hClose h
     return (i, o)
   where err env c = Err {
@@ -179,11 +193,6 @@ evalCmd c input output = case c of
 
 replaceVars :: Lit -> MoniteM [String]
 replaceVars (Lit i) = liftM words (parseVars i)
-
-{-replace :: String -> String -> String -> String-}
-{-replace "" _ _ = ""-}
-{-replace s  m r-}
-  {-| take (length m) s == m = r ++ replace (drop (length m) s) m r-}
 
 -- | Replace all $var in a string with their definitions in the environment
 parseVars :: String -> MoniteM String
@@ -250,7 +259,7 @@ buildPath old new = case new of
   ('~':'/':path)    -> do               -- if ~ , find the home directory
     home <- liftM addTrailingPathSeparator getHomeDirectory
     return $ home ++ (dropTrailingPathSeparator path)
-  _             -> return $ fixPath (splitDirectories (old </> new)) []  -- fix path
+  _             -> return $ fixPath (splitDirectories (normalise (old </> new))) []  -- fix path
 
 -- | Given a split path, it will build a new path from the parsed path atoms,
 -- going up on "..".
@@ -262,8 +271,8 @@ fixPath (s:ss) path
   | otherwise = fixPath ss (path </> s)
 
 -- | Create a new temporary file
-newTempFile :: MoniteM (FilePath, Handle)
-newTempFile = io $ openTempFile "." ".tmp.t"
+{-newTempFile :: MoniteM (FilePath, StdStream)-}
+{-newTempFile = io $ openTempFile "." ".tmp.t"-}
 
 -- | Re open a closed file in read mode
 reopenClosedFile :: FilePath -> MoniteM (Handle)

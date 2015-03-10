@@ -31,7 +31,7 @@ import Data.Maybe (fromJust)
 import System.Console.Haskeline
 import Control.Exception (AsyncException(..))
 
-import System.Environment ( getEnvironment )
+import System.Environment ( getEnvironment, setEnv )
 
 -- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
@@ -40,7 +40,7 @@ newtype MoniteM a = Monite { runMonite :: StateT Env
 
 -- | Monite shell environment, keep track of path and variables
 data Env = Env {
-  vars :: M.Map Var [String],
+  vars :: M.Map Var String,
   path:: FilePath
 } deriving (Show)
 
@@ -95,12 +95,12 @@ evalExp e input output = case e of
   (ECompL e1 (Lit i) []) -> eraseVar i -- erase var from env when done
   (ECompL e1 (Lit i) ((LExp (Lit s)):ss)) -> do
     -- Treat the literals as pure strings
-    updateVar i [s]                        -- extend the environment with eval of e2
+    updateVar i s                        -- extend the environment with eval of e2
     evalExp e1 input output              -- eval e1 in new environment
     evalExp (ECompL e1 (Lit i) ss) input output -- keep evaluating the rest of the list comp.
   (EComp e1 (Lit i) e2) -> do
     evalExpToStr e2 input $ \res -> do
-      mapM_ (\s -> updateVar i [s] >> evalExp e1 input output) res
+      updateVar i res >> evalExp e1 input output
       eraseVar i
   (ELet (Lit i) e) -> do
     extendEvalExp i e input              -- extend the environment with eval of e
@@ -125,12 +125,12 @@ extendEvalExp v e input = do
 -- | Evaluate an expression, and then perform the given action f with the
 -- output of the expression as a list of strings as input. Uses a temporary
 -- file to store the output.
-evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
+evalExpToStr :: Exp -> Handle -> (String -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
   (i,o) <- io createPipe
   evalExp e input o -- Evaluate the expression with its output redirected to the temp file
   ss <- io $ hGetContents i
-  f (lines ss)
+  f ss
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
@@ -206,9 +206,9 @@ parseVars :: String -> MoniteM String
 parseVars s = do
   if var == "" then return s else do
     ss <- lookupVar var
-    {-io $ putStrLn $ "Lookup: " ++ show ss-} -- TODO: Debug
+    {-io $ putStrLn $ "Lookup: " ++ show ss -- TODO: Debug-}
     {-io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)-} -- TODO: Debug
-    return (before ++ intercalate " " ss ++ after)
+    return (before ++ ss ++ after)
   where before  = takeWhile (/='$') s
         var     = takeWhile valid (drop (length before + 1) s)
         after   = drop (length before + 1 + length var) s
@@ -286,7 +286,7 @@ reopenClosedFile :: FilePath -> MoniteM (Handle)
 reopenClosedFile fp = io $ openFile fp ReadMode
 
 -- | Update a var in the environment
-updateVar :: Var -> [String] -> MoniteM ()
+updateVar :: Var -> String -> MoniteM ()
 updateVar v s = do
   modify (\env -> env { vars = M.insert v s (vars env) })
   env <- get
@@ -299,7 +299,7 @@ eraseVar v = do
   modify (\env -> env { vars = M.delete v (vars env) } )
 
 -- | Lookup a var in the environment
-lookupVar :: Var -> MoniteM [String]
+lookupVar :: Var -> MoniteM String
 lookupVar v = do
   env <- get
   case M.lookup v (vars env) of
@@ -328,7 +328,7 @@ proc' cmd args cwd input output =
 -- | An empty environment
 emptyEnv :: IO Env
 emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
-              env  <- liftM (map (\(k, v) -> (k, [v]))) getEnvironment
+              env  <- getEnvironment
               return $ Env (M.fromList env) home -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
 
 -- | Convert a list of text to a list of string

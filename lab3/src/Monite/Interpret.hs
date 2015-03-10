@@ -17,8 +17,6 @@ import System.Directory ( getHomeDirectory, removeFile, setCurrentDirectory, doe
 import System.IO
 import System.IO.Error
 import System.FilePath
-import qualified Data.Knob as K
-import qualified Data.ByteString as B
 
 import Control.Monad ( Monad, liftM, foldM )
 import Control.Applicative ( Applicative )
@@ -30,6 +28,7 @@ import Data.List (intersperse, intercalate)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
+import System.Console.Haskeline
 import Control.Exception (AsyncException(..))
 
 -- | MoniteM monad which handles state, exceptions, and IO
@@ -91,7 +90,7 @@ evalExp' e i o = catchError eval handle
 -- | Evaluate an expression -- TODO: Implement, compr, let, list : 2015-03-02 - 17:51:40 (John)
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e input output = case e of
-  (ECompL e1 (Lit i) []) -> eraseVar i >> return () -- erase var from env when done
+  (ECompL e1 (Lit i) []) -> eraseVar i -- erase var from env when done
   (ECompL e1 (Lit i) ((LExp (Lit s)):ss)) -> do
     -- Treat the literals as pure strings
     updateVar i [s]                        -- extend the environment with eval of e2
@@ -108,7 +107,7 @@ evalExp e input output = case e of
     evalExp e2 input output              -- eval e2 in the updated environment
     eraseVar i                           -- erase var from env
   (EList ((LExp e):es)) -> undefined -- TODO: Not sure how meaningful this is : 2015-03-07 - 12:49:51 (John)
-  (ECmd c) -> evalCmd c (UseHandle input) (UseHandle output) >> return ()
+  (ECmd c) -> evalCmd c input output >> return ()
   (EStr s) -> io $ hPutStrLn output s >> hClose output
 
 -- | Evaluate the expression with the stdout redirected to a temporary file, and
@@ -126,22 +125,14 @@ extendEvalExp v e input = do
 -- file to store the output.
 evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
-  -- TODO: Remove knob!
-  io $ putStrLn "Before pipe"
-  k <- K.newKnob (B.pack [])
-  h <- K.newFileHandle k "StrKnob" WriteMode
-  {-io $ putStrLn $ "Writing to file: " ++ show e-} -- TODO: Debug
-  evalExp e input h -- Evaluate the expression with its output redirected to the temp file
-  h <- K.newFileHandle k "StrKnob" ReadMode
-  io $ putStrLn "After pipe"
-  ss <- io $ hGetContents h
-  {-io $ putStrLn $ "Read: " ++ ss-} -- TODO: Debug
-  ret <- f (lines ss)
-  return ret
+  (i,o) <- io createPipe
+  evalExp e input o -- Evaluate the expression with its output redirected to the temp file
+  ss <- io $ hGetContents i
+  f (lines ss)
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
-evalCmd :: Cmd -> StdStream -> StdStream -> MoniteM (StdStream, StdStream) -- String for testing
+evalCmd :: Cmd -> Handle -> Handle -> MoniteM (Handle, Handle) -- String for testing
 evalCmd c input output = case c of
   (CText (b:ts))        -> do
     (s:ss) <- foldM (\ss t -> liftM (ss++) (replaceVars t)) [] (b:ts)  --TODO: Return a list of arguments
@@ -158,21 +149,24 @@ evalCmd c input output = case c of
         -- TODO: Handle interrupts!
         --hand p = withInterrupt $ handle (\Interrupt -> (liftIO $ putStrLn $ "Aborting command...\n") >> loop env) p
         env       <- get
-        eErrTup <- io $ tryIOError $ createProcess (proc' s ss (path env) input output)
+        eErrTup <- io $ tryIOError $ createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
         (i, o, _, p) <- case eErrTup of
           Left e  -> do
             io $ putStrLn (show e)
             throwError $ (err env (s:ss))
           Right h -> return h
         io $ waitForProcess p
-        return ( if i == Nothing then input  else UseHandle (fromJust i)
-               , if o == Nothing then output else UseHandle (fromJust o) )
+        return ( if i == Nothing then input  else fromJust i
+               , if o == Nothing then output else fromJust o)
+      where handl p = handle (\Interrupt -> return (Left "Command aborted")) p
+
   (CPipe c1 c2)     -> do
     {-io $ putStrLn "Before pipe"-}
     {-k <- K.newKnob (read "PipeKnob")-}
     {-h <- K.newFileHandle k "PipeKnob" ReadWriteMode-}
     {-io $ putStrLn "Mid pipe"-}
-    (_, pipe) <- evalCmd c1 input CreatePipe
+    ps <- io createPipe
+    (_, pipe) <- evalCmd c1 input (snd ps)
     {-h <- K.newFileHandle k "PipeKnob" ReadMode-}
     {-io $ putStrLn "After pipe"-}
     {-h <- reopenClosedFile fp-}
@@ -182,13 +176,13 @@ evalCmd c input output = case c of
   (COut c' t)      -> do
     f <- getFilename t
     h <- openFile' f WriteMode
-    (i, o) <- evalCmd c' input (UseHandle h)
+    (i, o) <- evalCmd c' input h
     io $ hClose h
     return (i, o)
   (CIn c' t)       -> do
     f <- getFilename t
     h <- openFile' f ReadMode
-    (i, o) <- evalCmd c' (UseHandle h) output
+    (i, o) <- evalCmd c' h output
     io $ hClose h
     return (i, o)
   where err env c = Err {

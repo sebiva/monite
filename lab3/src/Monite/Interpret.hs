@@ -53,7 +53,7 @@ interpret s = do
   {-io $ putStrLn (show (myLexer s)) -- TODO : Debug-}
   case pProgram $ myLexer s of
     Ok tree -> do
-      io $ putStrLn (show tree)   --  TODO : Debug
+      {-io $ putStrLn (show tree)   --  TODO : Debug-}
       {-io $ putStrLn "--------------------------"-}
       {-io $ putStrLn (printTree tree)-}
       {-io $ putStrLn "--------------------------"-}
@@ -87,13 +87,13 @@ evalExp' e i o = catchError eval handle
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e input output = case e of
   (ECompL e1 (Lit i) []) -> eraseVar i >> return () -- erase var from env when done
-  (ECompL e1 (Lit i) ((LExp e2):es)) -> do
-    extendEvalExp i e2 input             -- extend the environment with eval of e2
+  (ECompL e1 (Lit i) ((LExp (Lit s)):ss)) -> do
+    -- Treat the literals as pure strings
+    updateVar i [s]                        -- extend the environment with eval of e2
     evalExp e1 input output              -- eval e1 in new environment
-    evalExp (ECompL e1 (Lit i) es) input output -- keep evaluating the rest of the list comp expressions
+    evalExp (ECompL e1 (Lit i) ss) input output -- keep evaluating the rest of the list comp.
   (EComp e1 (Lit i) e2) -> do
     evalExpToStr e2 input $ \res -> do
-      {-io $ putStrLn (show res)-}
       mapM_ (\s -> updateVar i [s] >> evalExp e1 input output) res
       eraseVar i
   (ELet (Lit i) e) -> do
@@ -112,7 +112,7 @@ evalExp e input output = case e of
 extendEvalExp :: Var -> Exp -> Handle -> MoniteM ()
 extendEvalExp v e input = do
   evalExpToStr e input $ \res -> do
-    io $ putStrLn $ "extendEvalExp: " ++ (show res)
+    {-io $ putStrLn $ "extendEvalExp: " ++ (show res)-} --TODO: Debug
     updateVar v res               -- update env with the var v, and the result of e1
     return ()
 
@@ -122,11 +122,11 @@ extendEvalExp v e input = do
 evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
   (fp, h) <- newTempFile
-  io $ putStrLn $ "Writing to file: " ++ show e
+  {-io $ putStrLn $ "Writing to file: " ++ show e-} -- TODO: Debug
   evalExp e input h -- Evaluate the expression with its output redirected to the temp file
   h <- reopenClosedFile fp      -- Since createProcess seems to close the file, we need to open it again. -- TODO : Check if this works without reopening, seems to crash with it now.
   ss <- io $ hGetContents h
-  io $ putStrLn $ "Read: " ++ ss
+  {-io $ putStrLn $ "Read: " ++ ss-} -- TODO: Debug
   ret <- f (lines ss)
   io $ removeFile fp            -- Clean up the temporary file
   return ret
@@ -137,14 +137,14 @@ evalCmd :: Cmd -> Handle -> Handle -> MoniteM (Handle, Handle) -- String for tes
 evalCmd c input output = case c of
   (CText (b:ts))        -> do
     (s:ss) <- foldM (\ss t -> liftM (ss++) (replaceVars t)) [] (b:ts)  --TODO: Return a list of arguments
-    io $ putStrLn $ "Res: " ++ show (s:ss)
+    {-io $ putStrLn $ "Res: " ++ show (s:ss)-} -- TODO: Debug
     case b of
-     (TLit (Lit "cd")) -> do
+     (Lit "cd") -> do
         changeWorkingDirectory ts
-        {-io $ putStrLn (show ts)-}
+        {-io $ putStrLn (show ts)-} -- TODO: Debug
         return (input, output)
      _              -> do
-        {-io $ putStrLn $ "CMD: " ++ show c-}
+        {-io $ putStrLn $ "CMD: " ++ show c-} -- TODO: Debug
         env       <- get
         pHandle <- io $ tryIOError $ createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
         (i, o, _, p) <- case pHandle of
@@ -167,7 +167,6 @@ evalCmd c input output = case c of
     return (i, o)
   (CIn c' t)       -> do
     f <- getFilename t
-    {-io $ putStrLn f-}
     h <- openFile' f ReadMode
     (i, o) <- evalCmd c' h output
     io $ hClose h
@@ -178,8 +177,8 @@ evalCmd c input output = case c of
     , errMsg  = "Error invalid command: " ++ (intercalate " " c)
   }
 
-replaceVars :: Text -> MoniteM [String]
-replaceVars (TLit (Lit i)) = liftM words (parseVars i)
+replaceVars :: Lit -> MoniteM [String]
+replaceVars (Lit i) = liftM words (parseVars i)
 
 {-replace :: String -> String -> String -> String-}
 {-replace "" _ _ = ""-}
@@ -191,8 +190,8 @@ parseVars :: String -> MoniteM String
 parseVars s = do
   if var == "" then return s else do
     ss <- lookupVar var
-    io $ putStrLn $ "Lookup: " ++ show ss
-    io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)
+    {-io $ putStrLn $ "Lookup: " ++ show ss-} -- TODO: Debug
+    {-io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)-} -- TODO: Debug
     return (before ++ intercalate " " ss ++ after)
   where before  = takeWhile (/='$') s
         var     = takeWhile valid (drop (length before + 1) s)
@@ -218,15 +217,15 @@ openFile' f m = do
           | isPermissionError e   = "Permission denied"
 
 -- | Return a filename from a Text
-getFilename :: Text -> MoniteM FilePath
-getFilename (TLit (Lit l)) = parseVars l
+getFilename :: Lit -> MoniteM FilePath
+getFilename (Lit l) = parseVars l
 
 -- | Change the working directory of the shell to the head of the provided list
 -- of arguments. If the list is empty, the home directory is used.
-changeWorkingDirectory :: [Text] -> MoniteM ()
+changeWorkingDirectory :: [Lit] -> MoniteM ()
 changeWorkingDirectory ts = do
   t <- case ts of
-        []    -> liftM (TLit . Lit . (++ "/")) (io getHomeDirectory)
+        []    -> liftM (Lit . (++ "/")) (io getHomeDirectory)
         (t:_) -> return t
   [newPath] <- getText t
   env <- get
@@ -313,17 +312,17 @@ proc' cmd args cwd input output =
 -- | An empty environment
 emptyEnv :: IO Env
 emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
-              return $ Env M.empty (home ++ "/") -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
+              return $ Env M.empty home -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
 
 -- | Convert a list of text to a list of string
-readText :: [Text] -> MoniteM [String]
+readText :: [Lit] -> MoniteM [String]
 readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
                  {-io $ putStrLn (show ss)-}
                  return $ concat ss
 
 -- | Get the text as a list of strings from a literal. If it is a variable,
 -- the value is looked up in the environment.
-getText :: Text -> MoniteM [String]
+getText :: Lit -> MoniteM [String]
 getText t = replaceVars t   -- TODO: Remove, almost the same as getFilename
 
 -- | Shorthand for io actions

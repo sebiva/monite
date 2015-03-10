@@ -12,20 +12,20 @@ ECmd.    Exp1 ::= Cmd ;
 separator Exp ";" ;
 coercions Exp 5 ;
 
-LExp. ListEl  ::= Exp ;
+LExp. ListEl  ::= Lit ;
 separator ListEl "," ;
 
-CText.    Cmd4 ::= [Text] ;
+CText.    Cmd4 ::= [Lit] ;
 CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
-COut.     Cmd2 ::= Cmd2 ">" Text ;
-CIn.      Cmd1 ::= Cmd1 "<" Text ;
+COut.     Cmd2 ::= Cmd2 ">" Lit ;
+CIn.      Cmd1 ::= Cmd1 "<" Lit ;
 coercions Cmd 4 ;
 
 
-TLit.    Text ::= Lit ;
-separator nonempty Text "" ;
+{-TLit.    Text ::= Lit ;-}
+{-separator nonempty Text "" ;-}
 
 {-token Var ('$' (letter | digit | '_') (letter | digit | '_')*) ;-}
 {-token Id ((letter | digit | '_') (letter | digit | '_')*) ;-}
 token Lit (char - ["\",()[]<>|{};:\t\n "] (char - ["\",()[]<>|{};:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
-
+separator nonempty Lit "" ;

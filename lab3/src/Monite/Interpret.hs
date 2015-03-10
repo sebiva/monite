@@ -30,6 +30,8 @@ import Data.List (intersperse, intercalate)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
+import Control.Exception (AsyncException(..))
+
 -- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
                                             (ExceptT MoniteErr IO) a }
@@ -151,6 +153,10 @@ evalCmd c input output = case c of
         return (input, output)
      _              -> do
         {-io $ putStrLn $ "CMD: " ++ show c-} -- TODO: Debug
+
+
+        -- TODO: Handle interrupts!
+        --hand p = withInterrupt $ handle (\Interrupt -> (liftIO $ putStrLn $ "Aborting command...\n") >> loop env) p
         env       <- get
         eErrTup <- io $ tryIOError $ createProcess (proc' s ss (path env) input output)
         (i, o, _, p) <- case eErrTup of

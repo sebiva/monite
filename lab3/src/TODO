@@ -6,4 +6,12 @@
 
 --J Look at extending the shell testsuite
 
+* Implement proper interrupt handling
+
+* Remove knob
+
+* Read the $PATH from a conf
+
+* Add vim/emacs - mode to the conf
+
 JS Look at extending haskeline with user-defined completion functions

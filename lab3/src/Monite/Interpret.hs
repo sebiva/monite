@@ -95,13 +95,13 @@ evalLExp l inp out = case l of
   (LLet (Lit v) (WPar ws)) -> do sss <- mapM (\w -> reinterpret w inp) ws
                                  updateVar v (concat sss)
 
-  (LLet (Lit v) w)         -> do sss <- wrapToStr w
+  (LLet (Lit v) w)         -> do sss <- wrapToStr w inp
                                  updateVar v sss
   (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM (\w -> reinterpret w inp) ws
                                      enterScope v (concat sss)
                                      evalLExp l inp out
                                      exitScope
-  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr w
+  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr w inp
                                      enterScope v sss
                                      evalLExp l inp out
                                      exitScope
@@ -154,24 +154,29 @@ evalCmd c inp out = case c of
 -- Ex: { (($i)) : i <- [ls -l | wc] }
 reinterpret :: Wrap -> Handle -> MoniteM [String]
 reinterpret w inp = do
-  ss <- wrapToStr w
+  ss <- case w of
+          (WCmd c) -> replaceVarss c
+          (WPar ws) -> liftM concat $ mapM (\w -> wrapToStr w inp) ws
   (i, o) <- io $ createPipe
   interpret' (unwords ss) inp o
   io $ hClose o
   liftM lines $ io $ hGetContents i
 
-
-wrapToStr :: Wrap -> MoniteM [String]
-wrapToStr w = case w of
+-- | Convert a wrapper into a list of strings by converting the commands it is
+-- built of
+wrapToStr :: Wrap -> Handle -> MoniteM [String]
+wrapToStr w inp = case w of
   (WCmd c) -> replaceVarss c -- TODO: Make sure it is reinterpreted some time too
   (WPar ws) -> do
-    liftM concat (mapM wrapToStr ws)
-    {-io $ putStrLn $ "Wrapping!"-}
+    io $ putStrLn $ "Wrapping!"
+    liftM concat (mapM (\w -> reinterpret w inp) ws)
+    {-case w of-}
+                  {-(WCmd c') -> replaceVarss c'-}
+                  {-(WPar _) -> reinterpret w inp) ws)-}
     {-(i, o) <- io $ createPipe-}
     {-io (putStrLn "Hello")-}
     {-io (putStrLn $ unwords $ concat sss) -- TODO: Debug-}
 
-   {-(i, o) <- io createPipe-}
     {-evalExp e inp o-}
     {-io $ hClose o             -- Close the write end of the pipe to read from it-}
     {-ss <- io $ hGetContents i-}

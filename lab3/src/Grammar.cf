@@ -12,7 +12,7 @@ EList.    Exp ::= "[" [Cmd] "]" ;
 EWraps.     Exp ::= [Wrap] ;
 separator Exp ";" ;
 
-WPar.     Wrap ::= "(" Wrap ")" ;
+WPar.     Wrap ::= "(" [Wrap] ")" ;
 WCmd.    Wrap ::= Cmd ;
 separator nonempty Wrap "" ;
 

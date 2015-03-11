@@ -58,10 +58,12 @@ inputLoop env = do
       minput <- handleInterrupt (return $ Just "") (getInputLine ("λ> "))                 -- get user command
       case minput of
         Nothing -> return ()                      -- nothing entered
-        Just "quit" -> return ()                  -- quit the shell loop
-        Just "exit" -> return ()
-        Just input -> do env <- withInterrupt $ liftIO $ run (interpret input) env -- interpret user command
-                         loop env
+        Just input -> if isExitCode input then return ()
+                      else do env <- withInterrupt $ liftIO $ run (interpret input) env -- interpret user command
+                              loop env
+-- | Check if the input is an exit code
+isExitCode :: String -> Bool
+isExitCode s = s `elem` ["quit", "exit", ":q"]
 
 -- | Run the MoniteM monad, with a given environment
 run :: MoniteM a -> Env -> IO a
@@ -88,9 +90,10 @@ myComplete line@(left, right)
 -- which can not be followed by a white space
 isBinaryCommand :: String -> Bool
 isBinaryCommand []  = True
-isBinaryCommand cmd = l == 1 && (not b)
+isBinaryCommand cmd = l == 1 && (not b1) && (not b2)
   where rcmd = reverse cmd
-        b    = last rcmd == ' '
+        b1   = last rcmd == ' '
+        b2   = head rcmd == '.'
         l    = length (words rcmd)
 
 -- | Given the input of the first word to be completed, it will return the

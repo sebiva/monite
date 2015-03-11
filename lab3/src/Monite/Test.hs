@@ -40,9 +40,9 @@ runTest bin path = do
   waitForProcess p
   h1 <- openFile fp ReadMode
   output <- hGetContents h1
-  putStr output
+  {-putStr output-}
   eOutput <- readFile $ (path ++ ".output")
-  putStr eOutput
+  {-putStr eOutput-}
   removeFile fp
   if output == eOutput then return True
   else do putStrLn ("----------------------------------------------------")

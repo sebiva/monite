@@ -191,7 +191,7 @@ closePipe (i, o) = io $ hClose i >> hClose o
 
 -- | Replace all variables in a list of literals with their values
 replaceVarss :: [Lit] -> MoniteM [String]
-replaceVarss ls = foldM (\ss t -> liftM (ss++) (replaceVars t)) [] ls
+replaceVarss ls = mapM replaceVars ls >>= return . concat
 
 -- | Replace all variables in a literal with their values
 replaceVars :: Lit -> MoniteM [String]
@@ -204,7 +204,8 @@ parseVars s = do
     ss <- lookupVar var
     {-io $ putStrLn $ "Lookup: " ++ show ss-} -- TODO: Debug
     {-io $ putStrLn ("Var found in : " ++ before ++ intercalate " " ss ++ after)-} -- TODO: Debug
-    return (before ++ intercalate " " ss ++ after)
+    rest <- parseVars after
+    return (before ++ intercalate " " ss ++ rest)
   where before  = takeWhile (/='$') s
         var     = takeWhile valid (drop (length before + 1) s)
         after   = drop (length before + 1 + length var) s
@@ -228,32 +229,44 @@ openFile' f m = do
           | isDoesNotExistError e = "The file does not exist"
           | isPermissionError e   = "Permission denied"
 
--- | Return a filename from a Literal, replacing any variables with their values
+-- | Return a filename from a Literal, replacing any variables with their
+-- values. The filename must not contain any spaces.
 getFilename :: Lit -> MoniteM FilePath
-getFilename (Lit l) = parseVars l
+getFilename l = do
+  env <- get
+  ss <- replaceVars l
+  if length ss == 1 then return $ head ss
+    else throwError $ Err {
+        errPath = path env
+      , errCmd  = "Getting filename"
+      , errMsg  = "Filename must not contain spaces" }
 
 -- | Change the working directory of the shell to the head of the provided list
 -- of arguments. If the list is empty, the home directory is used.
 changeWorkingDirectory :: [Lit] -> MoniteM ()
 changeWorkingDirectory ts = do
-  t <- case ts of
-        []    -> liftM (Lit . (++ "/")) (io getHomeDirectory)
-        (t:_) -> return t
-  [newPath] <- getText t
   env <- get
+  cmd <- replaceVarss ts
+  newPath <- case cmd of
+          []    -> liftM (++ "/") (io getHomeDirectory)
+          (t:[]) -> return t
+          ss     -> throwError $ err cmd env "To many arguments to cd"
+
   finalPath <- io $ buildPath (path env) newPath
   exists <- io (doesDirectoryExist finalPath)
 
-  command <- readText ts
-  let err = Err {
-    errPath = path env
-  , errCmd = "cd " ++ concat command
-  , errMsg = "Can't cd to: " ++ finalPath ++ " : it does not exist"
-  }
-  if not exists then throwError err else return ()
+  if not exists
+    then throwError $
+          err cmd env ("Can't cd to: " ++ finalPath ++ " : it does not exist")
+     else return ()
   modify (\env -> env { path = finalPath } )
   io $ setCurrentDirectory finalPath
   return ()
+  where err cmd env msg = Err {
+            errPath = path env
+            , errCmd = "cd " ++ concat cmd
+            , errMsg = msg
+            }
 
 -- | Builds a valid path from the old path and the new path
 buildPath :: FilePath -> FilePath -> IO FilePath
@@ -316,17 +329,6 @@ proc' cmd args cwd input output =
 emptyEnv :: IO Env
 emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
               return $ Env M.empty home -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
-
--- | Convert a list of text to a list of string
-readText :: [Lit] -> MoniteM [String]
-readText ts = do ss <- mapM getText ts       -- mapM (Text -> MoniteM [String]) -> [Text] -> MoniteM [String]
-                 {-io $ putStrLn (show ss)-}
-                 return $ concat ss
-
--- | Get the text as a list of strings from a literal. If it is a variable,
--- the value is looked up in the environment.
-getText :: Lit -> MoniteM [String]
-getText t = replaceVars t   -- TODO: Remove, almost the same as getFilename
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a

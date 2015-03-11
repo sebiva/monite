@@ -37,8 +37,6 @@ import Data.List (intercalate)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-
-
 -- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
                                             (ExceptT MoniteErr IO) a }
@@ -56,20 +54,20 @@ type Context = M.Map Var [String]
 
 type Var = String
 
--- | Monite error
+-- | Monite error type
 data MoniteErr = Err {
   errPath :: FilePath,
   errCmd  :: String,
   errMsg  :: String
 }
 
-
 -- | The main loop which interprets the shell commands executed by the user.
 -- Returns the resulting environment.
 interpret :: String -> MoniteM Env
 interpret s = interpret' s stdin stdout
 
--- | Interpret a string using the provided pipes
+-- | Interpret a string using the provided pipes, parsing it using the bnfc
+-- grammar and then evaluating it.
 interpret' :: String -> Handle -> Handle -> MoniteM Env
 interpret' s inp out = do
   case pProgram $ myLexer s of
@@ -85,11 +83,14 @@ eval :: Program -> Handle -> Handle -> MoniteM ()
 eval (PProg exps) inp out =
   catchError (mapM_ (\e -> addExp e >> evalLExp e inp out) exps) handle
   where handle err = do
-                      io $ putStrLn $ "Error executing: " ++ errCmd err
-                      io $ putStrLn $ "In: " ++ errPath err
-                      io $ putStrLn $ errMsg err
+                      io $ hPutStrLn stderr $ "Error executing: " ++ errCmd err
+                      io $ hPutStrLn stderr $ "In: " ++ errPath err
+                      io $ hPutStrLn stderr $ errMsg err
         addExp e   = modify (\env -> env {cmd = e})
 
+-- | Evaluate a let-expression, updating the environment stack accordingly.
+-- For 'let x = w', the variable x is set to w globaly. With 'let x = w1 in w2'
+-- the variable x is only visible inside 'w2'. The righthandside must be Wrap.
 evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
 evalLExp l inp out = case l of
   (LLet (Lit v) (WPar ws)) -> do sss <- mapM (\w -> reinterpret w inp) ws
@@ -107,7 +108,8 @@ evalLExp l inp out = case l of
                                      exitScope
   (LLe e)                      -> evalExp e inp out
 
-
+-- | Evaluate an expression - a list comprehension, list of commands or a list
+-- of wraps.
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e inp out = case e of
   (EComp lexp (Lit v) e) -> do
@@ -118,6 +120,8 @@ evalExp e inp out = case e of
     mapM_ (io . (hPutStrLn out)) (map unwords sss)
   (EWraps ws)            -> mapM_ (\w -> evalWrapper w inp out) ws
 
+-- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating
+-- the contained command otherwise
 evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
 evalWrapper w inp out = case w of
   (WPar ws) -> do ss <- reinterpret w inp--mapM_ (\w -> evalWrapper w inp out) ws
@@ -150,8 +154,9 @@ evalCmd c inp out = case c of
                       evalCmd c' h out
                       io $ hClose h
 
--- TODO: Refactor into a reinterpret function and a wrapToStr function
--- Ex: { (($i)) : i <- [ls -l | wc] }
+-- | Reinterpret a Wrap, reading what is inside it as a string of input to the
+-- interpreteter. Any variables are replaced with their values and nested
+-- '(( ))' will be recursively interpreted.
 reinterpret :: Wrap -> Handle -> MoniteM [String]
 reinterpret w inp = do
   ss <- case w of
@@ -162,27 +167,16 @@ reinterpret w inp = do
   io $ hClose o
   liftM lines $ io $ hGetContents i
 
--- | Convert a wrapper into a list of strings by converting the commands it is
--- built of
+-- | Convert a Wrap into a list of strings by converting the commands it is
+-- built of to Strings, and any contained '(( ))' will be reinterpreted.
 wrapToStr :: Wrap -> Handle -> MoniteM [String]
 wrapToStr w inp = case w of
-  (WCmd c) -> replaceVarss c -- TODO: Make sure it is reinterpreted some time too
+  (WCmd c) -> replaceVarss c
   (WPar ws) -> do
     io $ putStrLn $ "Wrapping!"
     liftM concat (mapM (\w -> reinterpret w inp) ws)
-    {-case w of-}
-                  {-(WCmd c') -> replaceVarss c'-}
-                  {-(WPar _) -> reinterpret w inp) ws)-}
-    {-(i, o) <- io $ createPipe-}
-    {-io (putStrLn "Hello")-}
-    {-io (putStrLn $ unwords $ concat sss) -- TODO: Debug-}
 
-    {-evalExp e inp o-}
-    {-io $ hClose o             -- Close the write end of the pipe to read from it-}
-    {-ss <- io $ hGetContents i-}
-    {-f (lines ss)-}
-
--- | Replace all variables in a list of literals with their values
+-- | Replace all variables in a command with their values
 replaceVarss :: Cmd -> MoniteM [String]
 replaceVarss c = case c of
   (CText ts) -> mapM replaceVars (map textToStr ts) >>= return . concat
@@ -192,53 +186,18 @@ replaceVarss c = case c of
     return (ss1 ++ ["|"] ++ ss2)
   (COut c' (Lit o)) -> liftM (++[">"]++[o]) (replaceVarss c')
   (CIn c' (Lit i)) -> liftM (++["<"]++[i]) (replaceVarss c')
+  where textToStr :: Text -> String
+        textToStr t = case t of
+                      (TStr s) -> s
+                      (TLit (Lit s)) -> s
+
 
 -- | Replace all variables in a literal with their values
 replaceVars :: String -> MoniteM [String]
 replaceVars s = liftM words (parseVars s)
 
-textToStr :: Text -> String
-textToStr t = case t of
-  (TStr s) -> s
-  (TLit (Lit s)) -> s
-
-
-{--- | Evaluate an expression with its input and output from/to the provided-}
-{--- file handles-}
-{-evalExp :: Exp -> Handle -> Handle -> MoniteM ()-}
-{-evalExp e inp out = case e of-}
-  {-(ECompL e1 (Lit v) [])                  -> return ()-}
-  {-(ECompL e1 (Lit v) ((LExp (Lit s)):ss)) -> do-}
-    {--- Treat the literals as pure strings-}
-    {-enterScope v [s]-}
-    {-evalExp e1 inp out-}
-    {-evalExp (ECompL e1 (Lit v) ss) inp out-}
-    {-exitScope-}
-
-  {-(EComp e1 (Lit v) e2)         -> do-}
-    {-evalExpToStr e2 inp $ \res  -> do   -- evalute the list-expression to strings-}
-      {--- Evaluate the expression for each of the list elements-}
-      {-mapM_ (\s -> enterScope v [s] >> evalExp e1 inp out >> exitScope) res-}
-
-  {-(ELet (Lit v) e)       ->-}
-    {-evalExpToStr e inp $ \res -> do    -- extend the environment with eval of e-}
-      {-updateVar v res-}
-  {-(ELetIn (Lit v) e1 e2) ->-}
-    {-evalExpToStr e1 inp $ \res -> do-}
-      {-enterScope v res                 -- extend the env with v := eval e1-}
-      {-evalExp e2 inp out               -- eval e2 in the updated environment-}
-      {-exitScope-}
-
-  {-(EList ls) -> do-}
-    {--- Treat list elements as pure strings and just print them-}
-    {-mapM (\(LExp (Lit l)) -> io $ hPutStrLn out l ) ls-}
-    {-io $ hFlush out-}
-
-  {-(ECmd c) -> evalCmd c inp out-}
-  {-(EStr s) -> io $ hPutStrLn out s >> hFlush out-}
-
-{--- | Evaluate an expression into a list of strings, and then perform the given -}
-{--- action f with this list as input.-}
+-- | Evaluate a top-level expression into a list of strings, by running the
+-- expression and splitting the lines in the output into a list.
 evalLExpToStr :: LExp -> Handle -> MoniteM [String]
 evalLExpToStr e inp = do
   (i, o) <- io createPipe
@@ -247,40 +206,15 @@ evalLExpToStr e inp = do
   ss <- io $ hGetContents i
   return $ (lines ss)
 
+-- | Evaluate an expression into a list of strings by converting it to a
+-- top-level expression.
 evalExpToStr :: Exp -> Handle -> MoniteM [String]
 evalExpToStr e inp = evalLExpToStr (LLe e) inp
 
-{--- | Evaluate the given command, using the provided pipes for I/O. Returns the-}
-{--- resulting pipes (may be redirected).-}
-{-evalCmd :: Cmd -> Handle -> Handle -> MoniteM ()-}
-{-evalCmd c inp out = case c of-}
-  {-(CText (b:ts)) -> do-}
-                      {-ss <- replaceVarss (b:ts)-}
-                      {-[>io $ putStrLn $ "Res: " ++ show (ss) -- TODO: Debug<]-}
-                      {-if null ss then return () else-}
-                        {-case (head ss) of-}
-                          {-"cd" -> changeWorkingDirectory (tail ss)-}
-                          {-_    -> runCmd ss inp out-}
-  {-(CPipe c1 c2)  -> do-}
-                      {-(i, o) <- io createPipe-}
-                      {-evalCmd c1 inp o-}
-                      {-evalCmd c2 i out-}
-                      {-closePipe (i, o)-}
-  {-(COut c' t)    -> do-}
-                      {-f <- getFilename t-}
-                      {-h <- openFile' f WriteMode-}
-                      {-evalCmd c' inp h-}
-                      {-io $ hClose h-}
-  {-(CIn c' t)     -> do-}
-                      {-f <- getFilename t-}
-                      {-h <- openFile' f ReadMode-}
-                      {-evalCmd c' h out-}
-                      {-io $ hClose h-}
-
-{--- | Runs the command as a process, with the first element as the binary and-}
-{--- the rest as arguments.-}
+-- | Takes a command in the form of a nonempty list of strings. Runs the
+-- command as a process, with the first element as the binary and the rest as
+-- arguments.
 runCmd :: [String] -> Handle -> Handle -> MoniteM ()
--- runCmd []     inp out = return ()<] TODO: Should it be here? (See above)-}
 runCmd c@(s:ss) inp out = do
   env <- get
   let run = createProcess (proc' s ss (path env) (UseHandle inp) (UseHandle out))
@@ -428,14 +362,12 @@ lookupVar v = do
   vs <- liftM vars get
   case lookupVar' v vs of
     Nothing -> do
-      return [""]
---      env <- get -- TODO: Maybe throw to stderr instead : 2015-03-11 - 22:34:40 (John)
---      throwError $ Err {
---          errPath = path env
---        , errCmd  = printTree (cmd env)
---        , errMsg  = "Undefined variable: " ++ show v}
+      env <- get
+      throwError $ Err {
+          errPath = path env
+        , errCmd  = printTree (cmd env)
+        , errMsg  = "Undefined variable: " ++ show v}
     Just v  -> return v
-
 
 -- | Lookup a variable in the environment stack, returning the topmost one.
 lookupVar' :: Var -> [Context] -> Maybe [String]
@@ -466,14 +398,12 @@ proc' cmd args cwd inp out =
 initEnv :: IO Env
 initEnv = do home <- getCurrentDirectory
              env <- liftM (map (\(k, v) -> (k, [v]))) getEnvironment
-             return $ Env [M.fromList env] (lexp "") home
--- | TODO: Slask
-lexp :: String -> LExp
-lexp s = LLe $ EWraps $ [WCmd $ CText $ [TStr s]]
+             return $ (emptyEnv home) { vars = [M.fromList env]}
 
 -- | An empty environment
 emptyEnv :: FilePath -> Env
 emptyEnv path = Env [M.empty] (lexp "") path
+  where lexp s = LLe $ EWraps $ [WCmd $ CText $ [TStr s]]
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a

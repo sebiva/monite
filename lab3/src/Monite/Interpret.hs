@@ -67,19 +67,23 @@ data MoniteErr = Err {
 -- | The main loop which interprets the shell commands executed by the user.
 -- Returns the resulting environment.
 interpret :: String -> MoniteM Env
-interpret s = do
+interpret s = interpret' s stdin stdout
+
+-- | Interpret a string using the provided pipes
+interpret' :: String -> Handle -> Handle -> MoniteM Env
+interpret' s inp out = do
   case pProgram $ myLexer s of
     Ok tree -> do
-      eval tree
+      eval tree inp out
     Bad err -> do
       io $ putStrLn $ "Unrecognized command: " ++ s
   get
 
 -- | Evaluate the abstract syntax tree, as parsed by the lexer, catching errors
 -- thrown when executing it
-eval :: Program -> MoniteM ()
-eval (PProg exps) =
-  catchError (mapM_ (\e -> addExp e >> evalLExp e stdin stdout) exps) handle
+eval :: Program -> Handle -> Handle -> MoniteM ()
+eval (PProg exps) inp out =
+  catchError (mapM_ (\e -> addExp e >> evalLExp e inp out) exps) handle
   where handle err = do
                       io $ putStrLn $ "Error executing: " ++ errCmd err
                       io $ putStrLn $ "In: " ++ errPath err
@@ -88,7 +92,8 @@ eval (PProg exps) =
 
 evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
 evalLExp l inp out = case l of
-  (LLet (Lit v) w)     -> undefined
+  (LLet (Lit v) w)     -> do res <- evalWrapToStr w inp
+                             updateVar v res
   (LLetIn (Lit v) w e) -> undefined
   (LLe e)              -> undefined
 
@@ -110,6 +115,42 @@ evalCmd c inp out = case c of
   (CPipe c1 c2)     -> undefined
   (COut c' (Lit o)) -> undefined
   (CIn c' (Lit i))  -> undefined
+
+evalWrapToStr :: Wrap -> Handle -> MoniteM [String]
+evalWrapToStr w inp = case w of
+  (WCmd c) -> replaceVarss c
+  (WPar ws) -> do
+    sss <- mapM (\w -> evalWrapToStr w inp) ws
+
+    (i, o) <- io $ createPipe
+    interpret' (unwords $ concat sss) inp o
+    io $ hClose o
+    liftM lines $ io $ hGetContents i
+    {-(i, o) <- io createPipe-}
+    {-evalExp e inp o-}
+    {-io $ hClose o             -- Close the write end of the pipe to read from it-}
+    {-ss <- io $ hGetContents i-}
+    {-f (lines ss)-}
+
+-- | Replace all variables in a list of literals with their values
+replaceVarss :: Cmd -> MoniteM [String]
+replaceVarss c = case c of
+  (CText ts) -> mapM replaceVars (map textToStr ts) >>= return . concat
+  (CPipe c1 c2) -> do
+    ss1 <- replaceVarss c1
+    ss2 <- replaceVarss c2
+    return (ss1 ++ ["|"] ++ ss2)
+  (COut c' (Lit o)) -> liftM (++[">"]++[o]) (replaceVarss c')
+  (CIn c' (Lit i)) -> liftM (++["<"]++[i]) (replaceVarss c')
+
+-- | Replace all variables in a literal with their values
+replaceVars :: String -> MoniteM [String]
+replaceVars s = liftM words (parseVars s)
+
+textToStr :: Text -> String
+textToStr t = case t of
+  (TStr s) -> s
+  (TLit (Lit s)) -> s
 
 
 {--- | Evaluate an expression with its input and output from/to the provided-}
@@ -218,15 +259,6 @@ evalCmd c inp out = case c of
 -- | Close both ends of a pipe
 closePipe :: (Handle, Handle) -> MoniteM ()
 closePipe (i, o) = io $ hClose i >> hClose o
-
--- | Replace all variables in a list of literals with their values
-replaceVarss :: [Lit] -> MoniteM [String]
-replaceVarss ls = mapM replaceVars ls >>= return . concat
-
--- | Replace all variables in a literal with their values
-replaceVars :: Lit -> MoniteM [String]
-replaceVars (Lit i) = liftM words (parseVars i)
-
 -- | Replace all $var in a string with their definitions in the environment
 parseVars :: String -> MoniteM String
 parseVars s = do
@@ -260,7 +292,7 @@ openFile' f m = do
 -- | Return a filename from a Literal, replacing any variables with their
 -- values. The filename must not contain any spaces.
 getFilename :: Lit -> MoniteM FilePath
-getFilename l = do
+getFilename (Lit l) = do
   env <- get
   ss <- replaceVars l
   if length ss == 1 then return $ head ss

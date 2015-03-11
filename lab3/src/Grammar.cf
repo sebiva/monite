@@ -9,16 +9,16 @@ separator LExp ";" ;
 
 EComp.    Exp ::= "{" LExp ":" Lit "<-" Exp "}" ;
 EList.    Exp ::= "[" [Cmd] "]" ;
-ECmd.     Exp ::= [LElem] ;
+ECmd.     Exp ::= [Wrap] ;
 separator Exp ";" ;
 
-XX.     LElem ::= "(" LElem ")" ;
-XList.  LElem ::= Cmd ;
-separator nonempty LElem "" ;
+WPar.     Wrap ::= "(" Wrap ")" ;
+WList.    Wrap ::= Cmd ;
+separator nonempty Wrap "" ;
 
 
 {-CQoute.   Cmd4 ::= String ;-}
-CStr.     Cmd4 ::= [Text] ;
+CText.     Cmd4 ::= [Text] ;
 CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
 COut.     Cmd2 ::= Cmd2 ">" Lit ;
 CIn.      Cmd1 ::= Cmd1 "<" Lit ;
@@ -27,8 +27,8 @@ coercions Cmd 4 ;
 separator nonempty Cmd "," ;
 
 
-T1.   Text ::= String ;
-T2.   Text ::= Lit ;
+TStr.   Text ::= String ;
+TLit.   Text ::= Lit ;
 separator nonempty Text "" ;
 
 

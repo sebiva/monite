@@ -1,25 +1,51 @@
 comment "#" ;
 
-PProg.   Program ::= [Exp] ;
+PProg.   Program ::= [LExp] ;
 
-ECompL.  Exp5 ::= "{" Exp ":" Lit "<-" "[" [ListEl] "]" "}" ;
-EComp.   Exp5 ::= "{" Exp ":" Lit "<-" Exp "}" ;
-ELet.    Exp4 ::= "let" Lit "=" Exp ;
-ELetIn.  Exp3 ::= "let" Lit "=" Exp "in" Exp ;
-EList.   Exp2 ::= "[" [ListEl] "]" ;
-EStr.    Exp1 ::= String ;
-ECmd.    Exp1 ::= Cmd ;
+LLet.     LExp ::= "let" Lit "=" Cmd ;
+LLetIn.   LExp ::= "let" Lit "=" Cmd "in" LExp ;
+LLe.      LExp ::= Exp ;
+separator LExp ";" ;
+
+EComp.    Exp ::= "{" Exp ":" Lit "<-" Exp "}" ;
+EList.    Exp ::= "[" [Cmd] "]" ;
+ECmd.     Exp ::= Cmd ;
 separator Exp ";" ;
-coercions Exp 5 ;
 
-LExp. ListEl  ::= Lit ;
-separator ListEl "," ;
-
-CText.    Cmd4 ::= [Lit] ;
+CQoute.   Cmd4 ::= String ;
+CStr.     Cmd4 ::= [Lit] ;
 CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
 COut.     Cmd2 ::= Cmd2 ">" Lit ;
 CIn.      Cmd1 ::= Cmd1 "<" Lit ;
+CPar.     Cmd  ::= "(" Cmd4 ")" ;
 coercions Cmd 4 ;
+separator nonempty Cmd "," ;
+
+
+
+
+
+
+
+
+{-ECompL.  Exp5 ::= "{" Exp ":" Lit "<-" "[" [ListEl] "]" "}" ;-}
+{-EComp.   Exp5 ::= "{" Exp ":" Lit "<-" Exp "}" ;-}
+{-ELet.    Exp4 ::= "let" Lit "=" Exp ;-}
+{-ELetIn.  Exp3 ::= "let" Lit "=" Exp "in" Exp ;-}
+{-EList.   Exp2 ::= "[" [ListEl] "]" ;-}
+{-EStr.    Exp1 ::= String ;-}
+{-ECmd.    Exp1 ::= Cmd ;-}
+{-separator Exp ";" ;-}
+{-coercions Exp 5 ;-}
+
+{-LExp. ListEl  ::= Lit ;-}
+{-separator ListEl "," ;-}
+
+{-CText.    Cmd4 ::= [Lit] ;-}
+{-CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;-}
+{-COut.     Cmd2 ::= Cmd2 ">" Lit ;-}
+{-CIn.      Cmd1 ::= Cmd1 "<" Lit ;-}
+{-coercions Cmd 4 ;-}
 
 
 {-TLit.    Text ::= Lit ;-}

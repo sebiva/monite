@@ -1,20 +1,19 @@
 module Main (main) where
 
-import System.Environment (getArgs)
-import System.Console.Haskeline
-import Control.Exception (AsyncException(..))
-import System.Directory
-
 import Monite.Interpret
 
+import System.Environment (getArgs)
+import System.Console.Haskeline
+import System.Directory
+import System.FilePath
+
+import Control.Exception (AsyncException(..))
 import Control.Monad.Except ( ExceptT, runExceptT )
 import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT, get, modify, lift )
 import Control.Monad.IO.Class ( liftIO, MonadIO )
-
 import Control.Monad (forM, liftM)
-import System.FilePath
-import Data.List (isPrefixOf)
 
+import Data.List (isPrefixOf)
 import qualified Data.Map as M
 
 -- | Starting the shell main loop with a possible script file as argument.

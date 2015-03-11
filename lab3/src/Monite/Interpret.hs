@@ -51,6 +51,7 @@ data MoniteErr = Err {
   errMsg  :: String
 }
 
+
 -- | The main loop which interprets the shell commands executed by the user
 interpret :: String -> MoniteM Env
 interpret s = do
@@ -75,8 +76,14 @@ eval :: Program -> MoniteM ()
 eval (PProg exps) = do
   env <- get                        -- TODO: Debug : 2015-03-02 - 20:03:45 (John)
   {-io $ putStrLn $ show env      -- TODO: Debug : 2015-03-02 - 20:03:54 (John)-}
-  mapM_ (\e -> evalExp' e stdin stdout) exps
+  catchError (mapM_ (\e -> evalExp e stdin stdout) exps) handle
+  where handle err = do
+                      io $ putStrLn $ "Error executing: " ++ errCmd err
+                      io $ putStrLn $ "In: " ++ errPath err
+                      io $ putStrLn $ errMsg err
 
+
+-- TODO: Catch earlier instead to allow aborting sleep x ; ls . Throw an error down in runCmd
 -- | Evaluate an expression, catching and printing any error that occurs.
 evalExp' :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp' e i o = catchError eval handle
@@ -127,9 +134,8 @@ evalExpToStr :: Exp -> Handle -> ([String] -> MoniteM a) -> MoniteM a
 evalExpToStr e input f = do
   (i, o) <- io createPipe
   evalExp e input o -- Evaluate the expression with its output redirected to the pipe
-  {-io $ hClose o -- Close the output end of the pipe to read from it-}
-  ss <- io $ hGetContents i
-  closePipe (i, o)
+  io $ hClose o -- Close the output end of the pipe to read from it
+  ss <- io $ hGetContents i -- It seems hGetContents closes the pipe when everything is read -- TODO?
   f (lines ss)
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
@@ -162,31 +168,31 @@ evalCmd c input output = case c of
 -- | Runs the command as a process, with the first element as the binary and
 -- the rest as arguments.
 runCmd :: [String] -> Handle -> Handle -> MoniteM ()
-runCmd []     input output = return ()
-runCmd (s:ss) input output = do
+{-runCmd []     input output = return ()-} --TODO: Should it be here?
+runCmd c@(s:ss) input output = do
   env <- get
   let run = createProcess (proc' s ss (path env) (UseHandle input) (UseHandle output))
   -- Catch any errors that occur while running the process, and throw them as
   -- Monite errors instead so they can be cought and printed properly.
   eErrTup <- io $ tryIOError $ run
   (_, _, _, p) <- case eErrTup of
-    Left e  -> throwError $ (err env (s:ss))
+    Left e  -> throwError $ (err env)
     Right h -> return h
 
   -- Abort the command if Ctrl-C is pressed while it is being executed.
   -- Must use the InputT monad in order to use withInterrupt.
-  me <- io $ runInputT defaultSettings $ handl $ withInterrupt $ do
-    liftIO $ waitForProcess p
-    return Nothing
-  case me of
-    -- No error, return the correct pipes
+  merr <- io $ runInputT defaultSettings $ handl p $ withInterrupt $
+    liftIO $ waitForProcess p >> return Nothing
+
+  case merr of
     Nothing -> return ()
-    -- Error, terminate the process and wait for it to exit to avoid zombies
-    Just e  -> do io $ terminateProcess p
-                  io $ waitForProcess p
-                  io $ putStrLn e
-  where handl p = handleInterrupt (return $ Just "\nCommand aborted") p
-        err env c = Err { errPath = path env
+    Just m  -> throwError ((err env) {errMsg = m})
+  where handl p r = flip handleInterrupt r $ do
+                    -- Terminate the process and wait for it to exit to avoid zombies
+                    liftIO $ terminateProcess p
+                    liftIO $ waitForProcess p
+                    return $ Just $ "Command aborted: " ++ (intercalate " " c)
+        err env   = Err { errPath = path env
                         , errCmd  = "Process execution"
                         , errMsg  = "Invalid command: " ++ (intercalate " " c)
                         }
@@ -197,7 +203,7 @@ closePipe (i, o) = io $ hClose i >> hClose o
 
 -- | Replace all variables in a list of literals with their values
 replaceVarss :: [Lit] -> MoniteM [String]
-replaceVarss = foldM (\ss t -> liftM (ss++) (replaceVars t)) []
+replaceVarss ls = foldM (\ss t -> liftM (ss++) (replaceVars t)) [] ls
 
 -- | Replace all variables in a literal with their values
 replaceVars :: Lit -> MoniteM [String]

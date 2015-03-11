@@ -118,15 +118,16 @@ evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e inp out = case e of
   (EComp lexp (Lit v) e) -> do
     ss <- evalExpToStr e inp
-    mapM_ (\s -> enterScope v [s] >> evalExp e inp out >> exitScope) ss
+    mapM_ (\s -> enterScope v [s] >> evalLExp lexp inp out >> exitScope) ss
   (EList cs)             -> do
     sss <- mapM replaceVarss cs
-    mapM_ (io . (hPutStrLn out)) (concat sss)
+    mapM_ (io . (hPutStrLn out)) (map unwords sss)
   (EWraps ws)            -> mapM_ (\w -> evalWrapper w inp out) ws
 
 evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
 evalWrapper w inp out = case w of
   (WPar ws) -> mapM_ (\w -> evalWrapper w inp out) ws
+    {-mapM_ (io . (hPutStrLn out)) (concat sss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)-}
   (WCmd c)  -> evalCmd c inp out
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
@@ -158,7 +159,7 @@ evalCmd c inp out = case c of
 
 evalWrapToStr :: Wrap -> Handle -> MoniteM [String]
 evalWrapToStr w inp = case w of
-  (WCmd c) -> replaceVarss c
+  (WCmd c) -> replaceVarss c -- TODO: Make sure it is reinterpreted some time too
   (WPar ws) -> do
     sss <- mapM (\w -> evalWrapToStr w inp) ws
     io $ putStrLn $ "Wrapping!"

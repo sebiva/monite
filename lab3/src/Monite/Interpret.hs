@@ -94,8 +94,11 @@ evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
 evalLExp l inp out = case l of
   (LLet (Lit v) w)     -> do res <- evalWrapToStr w inp
                              updateVar v res
-  (LLetIn (Lit v) w e) -> undefined
-  (LLe e)              -> undefined
+  (LLetIn (Lit v) w l) -> do res <- evalWrapToStr w inp
+                             enterScope v res
+                             evalLExp l inp out
+                             exitScope
+  (LLe e)              -> evalExp e inp out
 
 
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()

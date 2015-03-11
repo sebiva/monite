@@ -7,21 +7,29 @@ LLetIn.   LExp ::= "let" Lit "=" Cmd "in" LExp ;
 LLe.      LExp ::= Exp ;
 separator LExp ";" ;
 
-EComp.    Exp ::= "{" Exp ":" Lit "<-" Exp "}" ;
+EComp.    Exp ::= "{" LExp ":" Lit "<-" Exp "}" ;
 EList.    Exp ::= "[" [Cmd] "]" ;
-ECmd.     Exp ::= Cmd ;
+ECmd.     Exp ::= [LElem] ;
 separator Exp ";" ;
 
-CQoute.   Cmd4 ::= String ;
-CStr.     Cmd4 ::= [Lit] ;
+XX.     LElem ::= "(" LElem ")" ;
+XList.  LElem ::= Cmd ;
+separator nonempty LElem "" ;
+
+
+{-CQoute.   Cmd4 ::= String ;-}
+CStr.     Cmd4 ::= [Text] ;
 CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
 COut.     Cmd2 ::= Cmd2 ">" Lit ;
 CIn.      Cmd1 ::= Cmd1 "<" Lit ;
-CPar.     Cmd  ::= "(" Cmd4 ")" ;
+{-CPar.     Cmd  ::= "(" Cmd4 ")" ;-}
 coercions Cmd 4 ;
 separator nonempty Cmd "," ;
 
 
+T1.   Text ::= String ;
+T2.   Text ::= Lit ;
+separator nonempty Text "" ;
 
 
 

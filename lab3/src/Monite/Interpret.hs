@@ -106,13 +106,17 @@ evalExp e inp out = case e of
   (EComp lexp (Lit v) e) -> do
     ss <- evalExpToStr e inp
     mapM_ (\s -> enterScope v [s] >> evalExp e inp out >> exitScope) ss
-  (EList cs)             -> undefined
-  (EWraps ws)            -> undefined
+  (EList cs)             -> do
+    sss <- mapM replaceVarss cs
+    mapM_ (io . (hPutStrLn out)) (concat sss)
+  (EWraps ws)            -> mapM_ (\w -> evalWrapper w inp out) ws
 
 evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
 evalWrapper w inp out = case w of
-  (WPar ws) -> undefined
-  (WCmd c)  -> undefined
+  (WPar ws) -> do
+    sss <- mapM (\w -> evalWrapToStr w inp) ws
+    mapM_ (io . (hPutStrLn out)) (concat sss)
+  (WCmd c)  -> evalCmd c inp out
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
@@ -146,8 +150,9 @@ evalWrapToStr w inp = case w of
   (WCmd c) -> replaceVarss c
   (WPar ws) -> do
     sss <- mapM (\w -> evalWrapToStr w inp) ws
-
+    io $ putStrLn $ "Wrapping!"
     (i, o) <- io $ createPipe
+    io (putStrLn $ unwords $ concat sss)
     interpret' (unwords $ concat sss) inp o
     io $ hClose o
     liftM lines $ io $ hGetContents i

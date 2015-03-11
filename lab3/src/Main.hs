@@ -17,10 +17,18 @@ import Data.List (isPrefixOf)
 
 import qualified Data.Map as M
 
--- TODO: Fix file placement! : 2015-03-06 - 16:08:11 (John)
-mySettings :: FilePath -> Settings IO
-mySettings path = setComplete myComplete $
-  defaultSettings { historyFile = Just $ path ++ "/monitehistory" }
+-- | Set the history file, and the custom completion function
+mySettings :: IO (Settings IO)
+mySettings = do
+  home <- getHomeDirectory
+  return $ setComplete myComplete $
+    defaultSettings { historyFile = Just $ home ++ "/.monitehistory" }
+
+-- | Read the end-user preferences from file
+myPrefs :: IO Prefs
+myPrefs = do
+  home <- getHomeDirectory
+  readPrefs (home ++ "/.moniterc") -- TODO: Document config file : 2015-03-11 - 10:14:25 (John)
 
 -- | Starting the shell main loop with a possible script file as argument.
 main :: IO ()
@@ -28,18 +36,21 @@ main = do
   args <- getArgs
   env <- initEnv
   case args of
-    [file] -> do s <- readFile file               -- read the script file
+    [file] -> do s <- readFile file                   -- read the script file
                  path <- getCurrentDirectory
-                 run (interpret s) (Env [M.empty] path)            -- interpret the script file
+                 run (interpret s) (Env [M.empty] path) -- interpret the script file
                  return ()
     _      -> do setCurrentDirectory (path env)
-                 inputLoop env                     -- get user commands
+                 inputLoop env                        -- get user commands
 
 -- | Get commands from the user
 inputLoop :: Env -> IO ()
 inputLoop env = do
-  path <- getHomeDirectory
-  runInputT (mySettings path) $ withInterrupt $ loop env         -- input loop w/ default sets
+  -- Get settings
+  settings <- mySettings
+  -- Get preferences
+  prefs    <- myPrefs
+  runInputTWithPrefs prefs settings $ withInterrupt $ loop env         -- input loop w/ default sets
   where
     loop :: Env -> InputT IO ()
     loop env = do
@@ -48,6 +59,7 @@ inputLoop env = do
       case minput of
         Nothing -> return ()                      -- nothing entered
         Just "quit" -> return ()                  -- quit the shell loop
+        Just "exit" -> return ()
         Just input -> do env <- withInterrupt $ liftIO $ run (interpret input) env -- interpret user command
                          loop env
 

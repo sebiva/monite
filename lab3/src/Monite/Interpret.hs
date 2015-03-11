@@ -31,6 +31,8 @@ import Data.Maybe (fromJust)
 import System.Console.Haskeline
 import Control.Exception (AsyncException(..))
 
+import System.Environment ( getEnvironment )
+
 -- | MoniteM monad which handles state, exceptions, and IO
 newtype MoniteM a = Monite { runMonite :: StateT Env
                                             (ExceptT MoniteErr IO) a }
@@ -349,7 +351,8 @@ proc' cmd args cwd input output =
 -- | An empty environment
 initEnv :: IO Env
 initEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
-             return $ Env [M.empty] home -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
+             env <- liftM (map (\(k, v) -> (k, [v]))) getEnvironment
+             return $ Env [M.fromList env] home
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a

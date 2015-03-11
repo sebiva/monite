@@ -1,5 +1,6 @@
+
 let x = x ;
-let x = ((echo z)) in let y = ($x) ;
+let x = echo z in let y = (($x)) ;
 
 echo $x ;    # stdout: x
 echo $y ;    # stdout: z
@@ -7,7 +8,7 @@ echo $y ;    # stdout: z
 {let x = (($i)) : i <- [echo x, echo y, echo z]} ;
 
 echo $x ;    # stdout: z
-echo $i ;    # stdout:
+echo $i ;    # stdout: 
 
 let y = y ;
 let x = $y ;
@@ -23,3 +24,6 @@ echo $x/$y/$z ; # stdout: x/y/z
 let xyz = $x$y$z ;
 
 echo $xyz ; # stdout: xyz
+
+let x = b ;
+echo aaaaa$x ; # stdout: aaaaab

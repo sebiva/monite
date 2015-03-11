@@ -92,23 +92,17 @@ eval (PProg exps) inp out =
 
 evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
 evalLExp l inp out = case l of
-  (LLet (Lit v) (WPar ws)) -> do (i, o) <- io createPipe
-                                 evalWrapper (WPar ws) inp o
-                                 io $ hClose o
-                                 res <- io $ hGetContents i
-                                 updateVar v (lines res)
+  (LLet (Lit v) (WPar ws)) -> do sss <- mapM (\w -> reinterpret w inp) ws
+                                 updateVar v (concat sss)
 
-  (LLet (Lit v) w)         -> do res <- evalWrapToStr w inp
-                                 updateVar v res
-  (LLetIn (Lit v) (WPar ws) l) -> do (i, o) <- io createPipe
-                                     evalWrapper (WPar ws) inp o
-                                     io $ hClose o
-                                     res <- io $ hGetContents i
-                                     enterScope v (lines res)
+  (LLet (Lit v) w)         -> do sss <- wrapToStr w
+                                 updateVar v sss
+  (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM (\w -> reinterpret w inp) ws
+                                     enterScope v (concat sss)
                                      evalLExp l inp out
                                      exitScope
-  (LLetIn (Lit v) w l)         -> do res <- evalWrapToStr w inp
-                                     enterScope v res
+  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr w
+                                     enterScope v sss
                                      evalLExp l inp out
                                      exitScope
   (LLe e)                      -> evalExp e inp out
@@ -126,8 +120,8 @@ evalExp e inp out = case e of
 
 evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
 evalWrapper w inp out = case w of
-  (WPar ws) -> mapM_ (\w -> evalWrapper w inp out) ws
-    {-mapM_ (io . (hPutStrLn out)) (concat sss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)-}
+  (WPar ws) -> do ss <- reinterpret w inp--mapM_ (\w -> evalWrapper w inp out) ws
+                  mapM_ (io . (hPutStrLn out)) (ss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)
   (WCmd c)  -> evalCmd c inp out
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
@@ -156,19 +150,28 @@ evalCmd c inp out = case c of
                       evalCmd c' h out
                       io $ hClose h
 
+-- TODO: Refactor into a reinterpret function and a wrapToStr function
+-- Ex: { (($i)) : i <- [ls -l | wc] }
+reinterpret :: Wrap -> Handle -> MoniteM [String]
+reinterpret w inp = do
+  ss <- wrapToStr w
+  (i, o) <- io $ createPipe
+  interpret' (unwords ss) inp o
+  io $ hClose o
+  liftM lines $ io $ hGetContents i
 
-evalWrapToStr :: Wrap -> Handle -> MoniteM [String]
-evalWrapToStr w inp = case w of
+
+wrapToStr :: Wrap -> MoniteM [String]
+wrapToStr w = case w of
   (WCmd c) -> replaceVarss c -- TODO: Make sure it is reinterpreted some time too
   (WPar ws) -> do
-    sss <- mapM (\w -> evalWrapToStr w inp) ws
-    io $ putStrLn $ "Wrapping!"
-    (i, o) <- io $ createPipe
-    io (putStrLn $ unwords $ concat sss)
-    interpret' (unwords $ concat sss) inp o
-    io $ hClose o
-    liftM lines $ io $ hGetContents i
-    {-(i, o) <- io createPipe-}
+    liftM concat (mapM wrapToStr ws)
+    {-io $ putStrLn $ "Wrapping!"-}
+    {-(i, o) <- io $ createPipe-}
+    {-io (putStrLn "Hello")-}
+    {-io (putStrLn $ unwords $ concat sss) -- TODO: Debug-}
+
+   {-(i, o) <- io createPipe-}
     {-evalExp e inp o-}
     {-io $ hClose o             -- Close the write end of the pipe to read from it-}
     {-ss <- io $ hGetContents i-}

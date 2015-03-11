@@ -26,11 +26,11 @@ mySettings path = setComplete myComplete $
 main :: IO ()
 main = do
   args <- getArgs
-  env <- emptyEnv
+  env <- initEnv
   case args of
     [file] -> do s <- readFile file               -- read the script file
                  path <- getCurrentDirectory
-                 run (interpret s) (Env M.empty path)            -- interpret the script file
+                 run (interpret s) (Env [M.empty] path)            -- interpret the script file
                  return ()
     _      -> do setCurrentDirectory (path env)
                  inputLoop env                     -- get user commands

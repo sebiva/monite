@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Monite.Interpret (
     interpret     -- :: String -> IO ()
-  , emptyEnv
+  , initEnv
   , MoniteM (..)
   , Env (..)
   )
@@ -38,9 +38,11 @@ newtype MoniteM a = Monite { runMonite :: StateT Env
 
 -- | Monite shell environment, keep track of path and variables
 data Env = Env {
-  vars :: M.Map Var [String],
+  vars :: [Context],
   path:: FilePath
 } deriving (Show)
+
+type Context = M.Map Var [String]
 
 type Var = String
 
@@ -85,37 +87,38 @@ eval (PProg exps) =
 -- file handles
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()
 evalExp e input output = case e of
-  (ECompL e1 (Lit i) []) -> eraseVar i   -- erase var from env when done
-  (ECompL e1 (Lit i) ((LExp (Lit s)):ss)) -> do
+  (ECompL e1 (Lit v) []) -> return ()
+  (ECompL e1 (Lit v) ((LExp (Lit s)):ss)) -> do
     -- Treat the literals as pure strings
-    updateVar i [s]                      -- extend the environment with eval of e2
+    enterScope v [s]
+    {-updateVar v [s]                      -- extend the environment with eval of e2-}
     evalExp e1 input output              -- eval e1 in new environment
-    evalExp (ECompL e1 (Lit i) ss) input output -- keep evaluating the rest of the list comp.
-  (EComp e1 (Lit i) e2) -> do
+    evalExp (ECompL e1 (Lit v) ss) input output -- keep evaluating the rest of the list comp.
+    exitScope
+
+  (EComp e1 (Lit v) e2) -> do
     evalExpToStr e2 input $ \res -> do   -- evalute the list-expression to strings
       -- Evaluate the expression for each of the list elements
-      mapM_ (\s -> updateVar i [s] >> evalExp e1 input output) res
-      eraseVar i --TODO: Write back the original value?
-  (ELet (Lit i) e) -> do
-    extendEvalExp i e input              -- extend the environment with eval of e
-  (ELetIn (Lit i) e1 e2) -> do
-    extendEvalExp i e1 input             -- extend the env with v := eval e1
-    evalExp e2 input output              -- eval e2 in the updated environment
-    eraseVar i                           -- erase var from env
+      mapM_ (\s -> enterScope v [s] >> evalExp e1 input output >> exitScope) res
+      {-eraseVar v --TODO: Write back the original value?-}
+
+  (ELet (Lit v) e) -> do
+    evalExpToStr e input $ \res -> do    -- extend the environment with eval of e
+      updateVar v res
+  (ELetIn (Lit v) e1 e2) -> do
+    evalExpToStr e1 input $ \res -> do
+      enterScope v res                   -- extend the env with v := eval e1
+      evalExp e2 input output            -- eval e2 in the updated environment
+      exitScope
+
   (EList []) -> io $ hFlush output
   (EList ((LExp (Lit l)):es)) -> do
     -- Treat list elements as pure strings
     io $ hPutStrLn output l
     evalExp (EList es) input output
+
   (ECmd c) -> evalCmd c input output
   (EStr s) -> io $ hPutStrLn output s >> hFlush output
-
--- | Evaluate the expression with the stdout redirected to a temporary pipe, and
--- extend the environment with the value of the evaluated expression assigned to
--- the variable.
-extendEvalExp :: Var -> Exp -> Handle -> MoniteM ()
-extendEvalExp v e input = do
-  evalExpToStr e input $ updateVar v
 
 -- | Evaluate an expression, and then perform the given action f with the
 -- output of the expression as a list of strings as input.
@@ -288,21 +291,32 @@ fixPath (s:ss) path
 -- | Update a var in the environment
 updateVar :: Var -> [String] -> MoniteM ()
 updateVar v s = do
-  modify (\env -> env { vars = M.insert v s (vars env) })
   env <- get
-  {-io $ putStrLn (show env) -- TODO: Debug : 2015-03-02 - 21:14:08 (John)-}
-  return ()
+  updateVar' v s (vars env) []
 
--- | Erase a var from the environment
-eraseVar :: Var -> MoniteM ()
-eraseVar v = do
-  modify (\env -> env { vars = M.delete v (vars env) } )
+-- | Update a variable in the most local context it occurs in. Takes a list of
+-- contexts, and a list of contexts already looked through to create the
+-- resulting environment.
+updateVar' :: Var -> [String] -> [Context] -> [Context] -> MoniteM ()
+updateVar' v ss (c:[]) rest = modify (\env -> env {vars = rest ++ [M.insert v ss c] })
+updateVar' v ss (c:cs) rest = do
+  case M.lookup v c of
+    Nothing -> updateVar' v ss cs (rest ++ [c])
+    Just _  -> modify (\env -> env {vars = rest ++ ((M.insert v ss c) : cs) })
 
--- | Lookup a var in the environment
+-- | Create a new scope with the supplied variable
+enterScope :: Var -> [String] -> MoniteM ()
+enterScope v s = modify (\env -> env {vars = M.insert v s M.empty : (vars env)})
+
+-- | Exit the current scope
+exitScope :: MoniteM ()
+exitScope = modify (\env -> env {vars = tail (vars env)})
+
+-- | Lookup a variable in the environment stack
 lookupVar :: Var -> MoniteM [String]
 lookupVar v = do
-  env <- get
-  case M.lookup v (vars env) of
+  vs <- liftM vars get
+  case lookupVar' v vs of
     Nothing -> do
       env <- get
       throwError $ Err {
@@ -310,6 +324,14 @@ lookupVar v = do
         , errCmd  = show v -- TODO: Should we keep the command in the state to be able to print it?
         , errMsg  = "Undefined variable: " ++ show v}
     Just v  -> return v
+
+
+-- | Lookup a variable in the environment stack, returning the topmost one.
+lookupVar' :: Var -> [Context] -> Maybe [String]
+lookupVar' v []     = Nothing
+lookupVar' v (c:cs) = case M.lookup v c of
+  Just ss -> return ss
+  Nothing -> lookupVar' v cs
 
 -- | Run a command cmd with args in cwd with the provided input and output pipes
 proc' :: FilePath -> [String] -> FilePath -> StdStream -> StdStream -> CreateProcess
@@ -324,11 +346,10 @@ proc' cmd args cwd input output =
                   create_group = False,
                   delegate_ctlc = False}
 
-
 -- | An empty environment
-emptyEnv :: IO Env
-emptyEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
-              return $ Env M.empty home -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
+initEnv :: IO Env
+initEnv = do home <- getHomeDirectory -- TODO: Config instead? : 2015-03-02 - 22:33:21 (John) Maybe should start in the current working dir?
+             return $ Env [M.empty] home -- TODO: Not nice? : 2015-03-03 - 19:58:37 (John) - Either adding '/' everywhere or keeping without them everywhere. This would require special cases for "/" though, for example when performing "cd .."
 
 -- | Shorthand for io actions
 io :: (MonadIO m) => IO a -> m a

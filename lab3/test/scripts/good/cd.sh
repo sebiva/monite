@@ -1,5 +1,5 @@
 # Testing the change directory command
-let x = pwd ;
+let x = ((pwd)) ;
 
 cd ../../../../../../../../../../../../../../../../../../ ;
 pwd ;           # stdout: /

@@ -1,13 +1,16 @@
+
 let x = x ;
-let x = echo z in let y = ($x) ;
+let x = echo z in let y = (($x)) ;
 
 echo $x ;    # stdout: x
 echo $y ;    # stdout: z
 
-{let x = ($i) : i <- [echo x, echo y, echo z]} ;
+echo aaaaa$x ;
+
+{let x = (($i)) : i <- [echo x, echo y, echo z]} ;
 
 echo $x ;    # stdout: z
-echo $i ;    # stdout:
+#echo $i ;    # stdout:  Not defined?
 
 let y = y ;
 let x = $y ;
@@ -22,4 +25,4 @@ echo $x/$y/$z ; # stdout: x/y/z
 
 let xyz = $x$y$z ;
 
-echo $xyx ; # stdout: xyz
+echo $xyz ; # stdout: xyz

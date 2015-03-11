@@ -239,4 +239,49 @@ configure the application to his/her liking. For example:
   maxhistorysize: Just 40
 \end{verbatim}
 
+\subsubsection{Interesting techniques}
+- Reader stack?
+- Implementation of error robust state
+
+\subsubsection{Monite shell}
+Monite shell is a shell written in Haskell. Monite shell is build using a couple
+of libraries; the major three being: haskeline, BNFC, and process.
+
+Haskeline is used used to provice a rich command-line interface for the
+end-user. Monite is customizable to the end-users preferences in the
+configuration file $\mathtt{\sim}$\textit{/.moniterc} (see haddock documentation
+for available preferences). It also provides monite with a history file, and
+useful completion functions. The end-user can tab-complete commands entered at
+the command-line, and using our customized completion function we look in the
+users \$PATH, in order to suggest completions for the first word entered at the
+command-line, and we then use the standard file completion from haskeline for
+tab-completion of the arguments.
+
+BNFC is a parsing library, and is used in monite to parse a small scripting
+language, which is available to the end-user to enter at the command line. We
+have written our own BNFC grammars, and BNFC can then generate a lexer, and a
+parser from these grammars, which are used to parse the commands entered on the
+command-line in monite. The abstract syntax tree is then evaluated using our own
+own evaluation functions.
+
+The process library is used to allow for easy execution, and handling of binary
+processes such as ls, cat, echo, etc, as well as to allow piping, and
+redirection of stdout. We support redirection, e.g., "ls > filef", and "cat <
+filef" and piping, e.g., "ls | wc | wc | wc".
+
+\textbf{Features}:
+Tab-completion, history file, configuration, redirection, piping, (small)
+scripting language, script execution, interrupt handling (Ctrl-c)
+
+\textbf{Missing features}:
+More general configuration file, the configuration supported now is that which
+haskeline provides by default, it would be nice to be able to set a custom
+prompt, and define custom functions. However, this would entail extending the
+scripting language with support for functions, which we realized was beyond the
+scope of this course. It would be nice to be able to set environment variables
+in the scripting language, e.g., allow the end-user can set his/her own \$PATH.
+
+Job control is another missing feature that monite could be extended with
+(probably a necessity for it to be considered a usable shell).
+
 \end{document}

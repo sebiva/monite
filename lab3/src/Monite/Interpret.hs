@@ -92,13 +92,26 @@ eval (PProg exps) inp out =
 
 evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
 evalLExp l inp out = case l of
-  (LLet (Lit v) w)     -> do res <- evalWrapToStr w inp
-                             updateVar v res
-  (LLetIn (Lit v) w l) -> do res <- evalWrapToStr w inp
-                             enterScope v res
-                             evalLExp l inp out
-                             exitScope
-  (LLe e)              -> evalExp e inp out
+  (LLet (Lit v) (WPar ws)) -> do (i, o) <- io createPipe
+                                 evalWrapper (WPar ws) inp o
+                                 io $ hClose o
+                                 res <- io $ hGetContents i
+                                 updateVar v (lines res)
+
+  (LLet (Lit v) w)         -> do res <- evalWrapToStr w inp
+                                 updateVar v res
+  (LLetIn (Lit v) (WPar ws) l) -> do (i, o) <- io createPipe
+                                     evalWrapper (WPar ws) inp o
+                                     io $ hClose o
+                                     res <- io $ hGetContents i
+                                     enterScope v (lines res)
+                                     evalLExp l inp out
+                                     exitScope
+  (LLetIn (Lit v) w l)         -> do res <- evalWrapToStr w inp
+                                     enterScope v res
+                                     evalLExp l inp out
+                                     exitScope
+  (LLe e)                      -> evalExp e inp out
 
 
 evalExp :: Exp -> Handle -> Handle -> MoniteM ()
@@ -113,9 +126,7 @@ evalExp e inp out = case e of
 
 evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
 evalWrapper w inp out = case w of
-  (WPar ws) -> do
-    sss <- mapM (\w -> evalWrapToStr w inp) ws
-    mapM_ (io . (hPutStrLn out)) (concat sss)
+  (WPar ws) -> mapM_ (\w -> evalWrapper w inp out) ws
   (WCmd c)  -> evalCmd c inp out
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the

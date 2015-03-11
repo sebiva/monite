@@ -12,7 +12,7 @@ EList.    Exp ::= "[" [Cmd] "]" ;
 EWraps.     Exp ::= [Wrap] ;
 separator Exp ";" ;
 
-WPar.     Wrap ::= "(" [Wrap] ")" ;
+WPar.     Wrap ::= "((" [Wrap] "))" ;
 WCmd.    Wrap ::= Cmd ;
 separator nonempty Wrap "" ;
 
@@ -61,5 +61,5 @@ separator nonempty Text "" ;
 
 {-token Var ('$' (letter | digit | '_') (letter | digit | '_')*) ;-}
 {-token Id ((letter | digit | '_') (letter | digit | '_')*) ;-}
-token Lit (char - ["\",()[]<>|{};:\t\n "] (char - ["\",()[]<>|{};:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
+token Lit (char - ["\"\',()[]<>|{};:\t\n "] (char - ["\"\',()[]<>|{};:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
 separator nonempty Lit "" ;

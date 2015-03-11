@@ -17,6 +17,57 @@ import Data.List (isPrefixOf)
 
 import qualified Data.Map as M
 
+-- | Starting the shell main loop with a possible script file as argument.
+main :: IO ()
+main = do
+  args <- getArgs
+  env <- initEnv
+  case args of
+    -- File mode
+    [file] -> do
+      s <- readFile file                     -- read the script file
+      path <- getCurrentDirectory
+      run (interpret s) (emptyEnv path) -- interpret the script file
+      return ()
+    -- Shell mode
+    _      -> do
+      setCurrentDirectory (path env)         -- defaults to $HOME
+      inputLoop env                          -- get user commands
+
+-- | Get commands from the user
+inputLoop :: Env -> IO ()
+inputLoop env = do
+  -- Get settings
+  settings <- mySettings
+  -- Get preferences
+  prefs    <- myPrefs
+  -- Run the input loop
+  runInputTWithPrefs prefs settings $ withInterrupt $ loop env
+
+-- | The main loop of the program, interprets the user input.
+loop :: Env -> InputT IO ()
+loop env = do
+  let prompt = path env -- TODO: /h/d/s/directory : 2015-03-03 - 16:52:39 (John)
+  -- get user command
+  minput <- handleInterrupt (return $ Just "") (getInputLine ("λ> "))
+  case minput of
+    Nothing    -> exitLoop
+    Just input -> if isExitCode input then exitLoop else runLoop input
+  where
+    -- exit the loop
+    exitLoop    = return ()
+    -- interpert entered command, and loop
+    runLoop inp = do env <- withInterrupt $ liftIO $ run (interpret inp) env
+                     loop env
+
+-- | Run the MoniteM monad, with a given environment
+run :: MoniteM a -> Env -> IO a
+run m env = do
+  res <- runExceptT $ evalStateT (runMonite m) env
+  case res of
+    Left err -> fail $ "error"
+    Right a  -> return a
+
 -- | Set the history file, and the custom completion function
 mySettings :: IO (Settings IO)
 mySettings = do
@@ -30,49 +81,9 @@ myPrefs = do
   home <- getHomeDirectory
   readPrefs (home ++ "/.moniterc") -- TODO: Document config file : 2015-03-11 - 10:14:25 (John)
 
--- | Starting the shell main loop with a possible script file as argument.
-main :: IO ()
-main = do
-  args <- getArgs
-  env <- initEnv
-  case args of
-    [file] -> do s <- readFile file                   -- read the script file
-                 path <- getCurrentDirectory
-                 run (interpret s) (emptyEnv path) -- interpret the script file
-                 return ()
-    _      -> do setCurrentDirectory (path env)
-                 inputLoop env                        -- get user commands
-
--- | Get commands from the user
-inputLoop :: Env -> IO ()
-inputLoop env = do
-  -- Get settings
-  settings <- mySettings
-  -- Get preferences
-  prefs    <- myPrefs
-  runInputTWithPrefs prefs settings $ withInterrupt $ loop env         -- input loop w/ default sets
-  where
-    loop :: Env -> InputT IO ()
-    loop env = do
-      let prompt = path env -- TODO: Makeup? : 2015-03-03 - 16:52:39 (John)
-      minput <- handleInterrupt (return $ Just "") (getInputLine ("λ> "))                 -- get user command
-      case minput of
-        Nothing -> return ()                      -- nothing entered
-        Just input -> if isExitCode input then return ()
-                      else do env <- withInterrupt $ liftIO $ run (interpret input) env -- interpret user command
-                              loop env
 -- | Check if the input is an exit code
 isExitCode :: String -> Bool
 isExitCode s = s `elem` ["quit", "exit", ":q"]
-
--- | Run the MoniteM monad, with a given environment
-run :: MoniteM a -> Env -> IO a
-run m env = do
-  res <- runExceptT $ evalStateT (runMonite m) env
-  case res of
-    Left err -> fail $ "error"
-    Right a  -> return a
-
 
 -- | Custom completion function for hskeline, which will consider the first word
 -- on the input line as a binary, and thus, suggest completions from the users
@@ -96,6 +107,9 @@ isBinaryCommand cmd = l == 1 && (not b1) && (not b2)
         b2   = head rcmd == '.'
         l    = length (words rcmd)
 
+-------------------------------------------------------------------------------
+--
+-- TODO: Extend haskeline with this completion function : 2015-03-11 - 11:25:27 (John)
 -- | Given the input of the first word to be completed, it will return the
 -- matching completions found in the users path.
 listBinFiles :: (MonadIO m) => FilePath -> m [Completion]

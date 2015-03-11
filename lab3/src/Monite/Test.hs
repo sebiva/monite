@@ -35,15 +35,12 @@ runTests bin dirTests = do
 -- output
 runTest :: FilePath -> FilePath -> IO Bool
 runTest bin path = do
-  (fp, h) <- openTempFile "." ".temp"
-  (_, _, _, p) <- createProcess $ process bin path (UseHandle h)
+  (i, o) <- createPipe
+  (_, _, _, p) <- createProcess $ process bin path (UseHandle o)
   waitForProcess p
-  h1 <- openFile fp ReadMode
-  output <- hGetContents h1
-  {-putStr output-}
-  eOutput <- readFile $ (path ++ ".output")
-  {-putStr eOutput-}
-  removeFile fp
+  hClose o
+  output <- hGetContents i
+  eOutput <- readFile (path ++ ".output")
   if output == eOutput then return True
   else do putStrLn ("----------------------------------------------------")
           putStrLn ("-- Testfile: " ++ path ++ " failed")

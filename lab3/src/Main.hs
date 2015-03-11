@@ -44,6 +44,7 @@ inputLoop env = do
   -- Run the input loop
   runInputTWithPrefs prefs settings $ withInterrupt $ loop env
 
+-- | The main loop of the program, interprets the user input.
 loop :: Env -> InputT IO ()
 loop env = do
   let prompt = path env -- TODO: /h/d/s/directory : 2015-03-03 - 16:52:39 (John)

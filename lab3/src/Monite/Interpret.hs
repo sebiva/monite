@@ -428,11 +428,12 @@ lookupVar v = do
   vs <- liftM vars get
   case lookupVar' v vs of
     Nothing -> do
-      env <- get
-      throwError $ Err {
-          errPath = path env
-        , errCmd  = printTree (cmd env)
-        , errMsg  = "Undefined variable: " ++ show v}
+      return [""]
+--      env <- get -- TODO: Maybe throw to stderr instead : 2015-03-11 - 22:34:40 (John)
+--      throwError $ Err {
+--          errPath = path env
+--        , errCmd  = printTree (cmd env)
+--        , errMsg  = "Undefined variable: " ++ show v}
     Just v  -> return v
 
 

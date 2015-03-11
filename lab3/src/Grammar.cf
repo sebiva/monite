@@ -9,11 +9,11 @@ separator LExp ";" ;
 
 EComp.    Exp ::= "{" LExp ":" Lit "<-" Exp "}" ;
 EList.    Exp ::= "[" [Cmd] "]" ;
-ECmd.     Exp ::= [Wrap] ;
+EWraps.     Exp ::= [Wrap] ;
 separator Exp ";" ;
 
 WPar.     Wrap ::= "(" Wrap ")" ;
-WList.    Wrap ::= Cmd ;
+WCmd.    Wrap ::= Cmd ;
 separator nonempty Wrap "" ;
 
 

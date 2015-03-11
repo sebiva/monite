@@ -2,8 +2,8 @@ comment "#" ;
 
 PProg.   Program ::= [LExp] ;
 
-LLet.     LExp ::= "let" Lit "=" Cmd ;
-LLetIn.   LExp ::= "let" Lit "=" Cmd "in" LExp ;
+LLet.     LExp ::= "let" Lit "=" Wrap ;
+LLetIn.   LExp ::= "let" Lit "=" Wrap "in" LExp ;
 LLe.      LExp ::= Exp ;
 separator LExp ";" ;
 

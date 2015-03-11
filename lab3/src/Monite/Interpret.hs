@@ -88,8 +88,8 @@ eval (PProg exps) =
 
 evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
 evalLExp l inp out = case l of
-  (LLet (Lit v) c)     -> undefined
-  (LLetIn (Lit v) c e) -> undefined
+  (LLet (Lit v) w)     -> undefined
+  (LLetIn (Lit v) w e) -> undefined
   (LLe e)              -> undefined
 
 
@@ -101,7 +101,7 @@ evalExp e inp out = case e of
 
 evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
 evalWrapper w inp out = case w of
-  (WPar w') -> undefined
+  (WPar ws) -> undefined
   (WCmd c)  -> undefined
 
 evalCmd :: Cmd -> Handle -> Handle -> MoniteM ()

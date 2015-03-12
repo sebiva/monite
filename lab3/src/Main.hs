@@ -46,9 +46,10 @@ inputLoop env = do
 -- | The main loop of the program, interprets the user input.
 loop :: Env -> InputT IO ()
 loop env = do
-  let prompt = path env -- TODO: /h/d/s/directory : 2015-03-03 - 16:52:39 (John)
   -- get user command
-  minput <- handleInterrupt (return $ Just "") (getInputLine ("λ> "))
+  home <- liftIO getHomeDirectory
+  let prmpt = prompt (path env) home
+  minput <- handleInterrupt (return $ Just "") (getInputLine (prmpt ++ " λ> "))
   case minput of
     Nothing    -> exitLoop
     Just input -> if isExitCode input then exitLoop else runLoop input
@@ -58,6 +59,17 @@ loop env = do
     -- interpert entered command, and loop
     runLoop inp = do env <- withInterrupt $ liftIO $ run (interpret inp) env
                      loop env
+
+-- | Create a prompt path from the current working dir, shortening $HOME to
+-- '~'. Also shortens all but the topmost directory to their first letter.
+prompt :: FilePath -> FilePath -> String
+prompt p home
+ | take (length home) p == home = '~' : prompt' (drop (length home) p)
+ | otherwise                    = prompt' p
+ where prompt' :: FilePath -> String
+       prompt' p = if null (splitPath p) then ""
+                   else let dirs = map (\(c:_) -> [c]) (init $ splitPath p)
+                        in joinPath (dirs ++ [last (splitPath p)])
 
 -- | Run the MoniteM monad, with a given environment
 run :: MoniteM a -> Env -> IO a

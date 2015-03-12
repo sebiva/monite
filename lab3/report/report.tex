@@ -243,7 +243,7 @@ configure the application to his/her liking. For example:
 - Reader stack?
 - Implementation of error robust state
 
-\subsubsection{Monite shell}
+\subsection{Monite shell}
 Monite shell is a shell written in Haskell. Monite shell is build using a couple
 of libraries; the major three being: haskeline, BNFC, and process.
 
@@ -265,13 +265,99 @@ command-line in monite. The abstract syntax tree is then evaluated using our own
 own evaluation functions.
 
 The process library is used to allow for easy execution, and handling of binary
-processes such as ls, cat, echo, etc, as well as to allow piping, and
-redirection of stdout. We support redirection, e.g., "ls > filef", and "cat <
-filef" and piping, e.g., "ls | wc | wc | wc".
+processes such as ls, cat, echo, etc, as well as to create pipes to allow
+piping of commands, and redirection of stdout. We support redirection, e.g.,
+"ls > filef", and "cat < filef" and piping, e.g., "ls | wc | wc | wc".
 
-\textbf{Features}:
+\subsubsection{Features}
 Tab-completion, history file, configuration, redirection, piping, (small)
-scripting language, script execution, interrupt handling (Ctrl-c)
+scripting language, script execution, interrupt handling (Ctrl-c).
+
+The syntax of our scripting language is as follows:
+
+\begin{verbatim}
+LetExp ::= let Lit = Wrap | let Lit = Wrap in LetExp | Exp
+Exp    ::= { LetExp : Lit <- Exp } | [ Cmd, Cmd ... ] | Wrap Wrap ...
+Wrap   ::= (( Wrap Wrap ... )) | Cmd
+Cmd    ::= Text Text ... | Cmd ``|'' Cmd | Cmd > Lit | Cmd > Lit
+Text   ::= String | Lit
+\end{verbatim}
+
+Where a literal is a sequence of characters not in the set:
+\begin{verbatim}
+"\"\',()[]<>|{};:\t\n "
+\end{verbatim}
+
+\textbf{Let expressions}
+
+Let expressions extend the current scope with a new variable with a name of
+type Lit. If a variable is called ``x'', it can be referenced by using ``\$x''.
+When using the let x = $\dots$ syntax, the variable is set globally, but when
+the let x = $\dots$ in Exp syntax is used, the variable is only available
+within Exp, and deleted afterwards. Example:
+
+\begin{verbatim}
+let x = 42 ;
+let x = hello in echo $x ; # Should print "hello"
+echo $x ; # Should print "42"
+\end{verbatim}
+
+Only values can be assigned to variables. This is enforced by using the type Wrap, which is either a command (which can be stored as string) or list of Wraps within parentheses. These parentheses mean that whats inside it should be evaluated before it is stored. Therefore, let x = ls will just store the string ``ls'', whereas let x = ((ls)) will store the output of running ls (As of now, we don't handle the formatting of the command more than joining the string with spaces, this could be improved in a more polished version). Example:
+
+\begin{verbatim}
+let x = ls ;
+$x ; # Will execute ls
+let x = ((ls)) ;
+echo $x ; # Will print the output of ls using echo
+\end{verbatim}
+
+\textbf{List comprehensions}
+
+The list comprehension evaluates the rightmost expression to a list of strings,
+and for each string $s$ in this list, assigns it to the variable $i$ and
+evaluates the leftmost expression with $i$ in its context.
+
+\textbf{Lists}
+
+Lists contain commands, and evaluating a list by itself only prints the commands as they are. They can be used within list comprehensions to execute the commands, for example:
+
+\begin{verbatim}
+{ $x : i <- [pwd, ls] } ; # Should print the output of first pwd, the ls
+\end{verbatim}
+
+\textbf{Commands and Wraps}
+
+Commands are the things that are actually executed in the language. A command
+is a list of Text, perhaps combined with pipes and redirects. Since texts can
+contain variables, evaluating a command involves replacing all variables by
+their value and redirecting the input/output according to pipes.
+
+In order to make the language more useful, Wraps were introduce to let the user
+capture the output of a command and use it as a value. As explained earlier,
+anything within ``(())'' should be evaluated before it is used. Since it can
+contain variables that must be replaced by their values, and these values may
+contain pipes and redirects (see example below), it must be flattened to a
+string and then reinterpreted. This way, the output of a command can be used
+just like a value. To make it behave like a single value, explicit " are added
+around the result when it is not the first part of a command, as it should be
+the binary to be executed then.
+
+\begin{verbatim}
+let x = ls -l | wc in echo $x (($x)) ; # Should print both
+\end{verbatim}
+
+
+
+
+The syntax works as follows: Everything that is entered is interpreted as
+strings, unless it is wrapped in ``$\left( \left(  \right) \right)$'' (in which
+case it is taken as an expression returning a string).
+
+\begin{verbatim}
+let x = ls -l | wc in echo $x (($x))
+\end{verbatim}
+
+This will print first the text ``ls -l | wc'' and then the result of running that command. (The formatting is not yet fully correct, but could be fixed with some more time)
 
 \textbf{Missing features}:
 More general configuration file, the configuration supported now is that which

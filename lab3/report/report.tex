@@ -302,7 +302,13 @@ let x = hello in echo $x ; # Should print "hello"
 echo $x ; # Should print "42"
 \end{verbatim}
 
-Only values can be assigned to variables. This is enforced by using the type Wrap, which is either a command (which can be stored as string) or list of Wraps within parentheses. These parentheses mean that whats inside it should be evaluated before it is stored. Therefore, let x = ls will just store the string ``ls'', whereas let x = ((ls)) will store the output of running ls (As of now, we don't handle the formatting of the command more than joining the string with spaces, this could be improved in a more polished version). Example:
+Only values can be assigned to variables. This is enforced by using the type
+Wrap, which is either a command (which can be stored as string) or list of
+Wraps within parentheses. These parentheses mean that whats inside it should be
+evaluated before it is stored. Therefore, let x = ls will just store the string
+``ls'', whereas let x = ((ls)) will store the output of running ls (As of now,
+we don't handle the formatting of the command more than joining the string with
+spaces, this could be improved in a more polished version). Example:
 
 \begin{verbatim}
 let x = ls ;
@@ -319,7 +325,9 @@ evaluates the leftmost expression with $i$ in its context.
 
 \textbf{Lists}
 
-Lists contain commands, and evaluating a list by itself only prints the commands as they are. They can be used within list comprehensions to execute the commands, for example:
+Lists contain commands, and evaluating a list by itself only prints the
+commands as they are. They can be used within list comprehensions to execute
+the commands, for example:
 
 \begin{verbatim}
 { $x : i <- [pwd, ls] } ; # Should print the output of first pwd, the ls
@@ -357,9 +365,38 @@ case it is taken as an expression returning a string).
 let x = ls -l | wc in echo $x (($x))
 \end{verbatim}
 
-This will print first the text ``ls -l | wc'' and then the result of running that command. (The formatting is not yet fully correct, but could be fixed with some more time)
+This will print first the text ``ls -l | wc'' and then the result of running
+that command. (The formatting is not yet fully correct, but could be fixed with
+some more time)
 
-\textbf{Missing features}:
+\textbf{Techniques and Reflection}
+
+In writing our monite shell, we have used several of the development techniques
+discussed in the course. Obviously, Monads have played a huge part in the
+writing of our program, as we are in need of both State, IO and Error handling.
+In order to get our MoniteM monad we used the concept of Monad transformers
+which has been a big part of the course. Using transformers we get a lot of
+things for free, for example getting and modifying the state, performing io
+actions using liftIO and throwing and catching errors. One thing that was
+tricky despite our transformer stack was too use it along with the InputT
+transformer from haskeline. In order to catch the Ctrl-C interrupt, we had to
+have a monad in the MonadException typeclass defined within haskeline. Even
+though there were instances for some transformers, there was none for the
+ExceptT that we use, only for the deprecated ErrorT. Luckily, it was enough to
+run IO-actions within the things we wanted to catch, and IO was one of
+predefined instances. Otherwise we would either have had to create our own
+instance which proved to be tricky, or change our transformer stack to the
+deprecated ErrorT which would have been a step back.
+
+Throughout the project, we noticed that it is hard to nail the grammar in the
+first try, and that it may be good to start over. It took some time getting it
+right, and there still may be room for improvements, perhaps using something
+else than bnfc for the grammar. Reworking the grammar takes very long as the
+entire interpreter must be changed to reflect it, and it can thus be worth
+taking even more time getting it right in the first place.
+
+\textbf{Missing features}
+
 More general configuration file, the configuration supported now is that which
 haskeline provides by default, it would be nice to be able to set a custom
 prompt, and define custom functions. However, this would entail extending the

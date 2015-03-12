@@ -47,7 +47,8 @@ newtype MoniteM a = Monite { runMonite :: StateT Env
 data Env = Env {
   vars :: [Context],
   cmd :: LExp,
-  path:: FilePath
+  path :: FilePath,
+  pipes :: (Handle,Handle)
 } deriving (Show)
 
 type Context = M.Map Var [String]
@@ -64,24 +65,24 @@ data MoniteErr = Err {
 -- | The main loop which interprets the shell commands executed by the user.
 -- Returns the resulting environment.
 interpret :: String -> MoniteM Env
-interpret s = interpret' s stdin stdout
+interpret s = interpret' s
 
 -- | Interpret a string using the provided pipes, parsing it using the bnfc
 -- grammar and then evaluating it.
-interpret' :: String -> Handle -> Handle -> MoniteM Env
-interpret' s inp out = do
+interpret' :: String -> MoniteM Env
+interpret' s = do
   case pProgram $ myLexer s of
     Ok tree -> do
-      eval tree inp out
+      eval tree
     Bad err -> do
       io $ putStrLn $ "Unrecognized command: " ++ s
   get
 
 -- | Evaluate the abstract syntax tree, as parsed by the lexer, catching errors
 -- thrown when executing it
-eval :: Program -> Handle -> Handle -> MoniteM ()
-eval (PProg exps) inp out =
-  catchError (mapM_ (\e -> addExp e >> evalLExp e inp out) exps) handle
+eval :: Program -> MoniteM ()
+eval (PProg exps) =
+  catchError (mapM_ (\e -> addExp e >> evalLExp e) exps) handle
   where handle err = do
                       io $ hPutStrLn stderr $ "Error executing: " ++ errCmd err
                       io $ hPutStrLn stderr $ "In: " ++ errPath err
@@ -91,90 +92,109 @@ eval (PProg exps) inp out =
 -- | Evaluate a let-expression, updating the environment stack accordingly.
 -- For 'let x = w', the variable x is set to w globaly. With 'let x = w1 in w2'
 -- the variable x is only visible inside 'w2'. The righthandside must be Wrap.
-evalLExp :: LExp -> Handle -> Handle -> MoniteM ()
-evalLExp l inp out = case l of
-  (LLet (Lit v) (WPar ws)) -> do sss <- mapM (\w -> reinterpret w inp) ws
+evalLExp :: LExp -> MoniteM ()
+evalLExp l = case l of
+  (LLet (Lit v) (WPar ws)) -> do sss <- mapM (\w -> reinterpret w) ws
                                  updateVar v (concat sss)
 
-  (LLet (Lit v) w)         -> do sss <- wrapToStr w inp
+  (LLet (Lit v) w)         -> do sss <- wrapToStr w
                                  updateVar v sss
-  (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM (\w -> reinterpret w inp) ws
+  (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM (\w -> reinterpret w) ws
                                      enterScope v (concat sss)
-                                     evalLExp l inp out
+                                     evalLExp l
                                      exitScope
-  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr w inp
+  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr w
                                      enterScope v sss
-                                     evalLExp l inp out
+                                     evalLExp l
                                      exitScope
-  (LLe e)                      -> evalExp e inp out
+  (LLe e)                      -> evalExp e
 
 -- | Evaluate an expression - a list comprehension, list of commands or a list
 -- of wraps.
-evalExp :: Exp -> Handle -> Handle -> MoniteM ()
-evalExp e inp out = case e of
+evalExp :: Exp -> MoniteM ()
+evalExp e = case e of
   (EComp lexp (Lit v) e) -> do
-    ss <- evalExpToStr e inp
-    mapM_ (\s -> enterScope v [s] >> evalLExp lexp inp out >> exitScope) ss
+    ss <- evalExpToStr e
+    mapM_ (\s -> enterScope v [s] >> evalLExp lexp >> exitScope) ss
   (EList cs)             -> do
     sss <- mapM replaceVarss cs
+    out <- liftM (snd . pipes) get
     mapM_ (io . (hPutStrLn out)) (map unwords sss)
-  (EWraps ws)            -> mapM_ (\w -> evalWrapper w inp out) ws
+  (EWraps ws)            -> mapM_ (\w -> evalWrapper w) ws
 
 -- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating
 -- the contained command otherwise
-evalWrapper :: Wrap -> Handle -> Handle -> MoniteM ()
-evalWrapper w inp out = case w of
-  (WPar ws) -> do ss <- reinterpret w inp--mapM_ (\w -> evalWrapper w inp out) ws
+evalWrapper :: Wrap -> MoniteM ()
+evalWrapper w  = case w of
+  (WPar ws) -> do ss <- reinterpret w -- TODO: Ta bort ->mapM_ (\w -> evalWrapper w inp out) ws
+                  out <- liftM (snd . pipes) get
                   mapM_ (io . (hPutStrLn out)) (ss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)
-  (WCmd c)  -> evalCmd c inp out
+  (WCmd c)  -> evalCmd c
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
-evalCmd :: Cmd -> Handle -> Handle -> MoniteM ()
-evalCmd c inp out = case c of
+evalCmd :: Cmd -> MoniteM ()
+evalCmd c = case c of
   (CText ts)     -> do
                       ss <- replaceVarss c
                       if null ss then return () else
                         case (head ss) of
                           "cd" -> changeWorkingDirectory (tail ss)
-                          _    -> runCmd ss inp out
+                          _    -> runCmd ss
   (CPipe c1 c2) -> do
                       (i, o) <- io createPipe
-                      evalCmd c1 inp o
-                      evalCmd c2 i out
+                      (inp, out) <- liftM pipes get
+                      setPipes (inp, o)
+                      evalCmd c1
+                      setPipes (i, out)
+                      evalCmd c2
                       closePipe (i, o)
+                      setPipes (inp, out)
   (COut c' lit) -> do
                       f <- getFilename lit
                       h <- openFile' f WriteMode
-                      evalCmd c' inp h
+                      (inp, out) <- liftM pipes get
+                      setPipes (inp, h)
+                      evalCmd c'
                       io $ hClose h
+                      setPipes (inp, out)
   (CIn c' lit)  -> do
                       f <- getFilename lit
                       h <- openFile' f ReadMode
-                      evalCmd c' h out
+                      (inp, out) <- liftM pipes get
+                      setPipes (h, out)
+                      evalCmd c'
                       io $ hClose h
+                      setPipes (inp, out)
+
+-- TODO: THis should not work: { echo (($i)) ls : i <- [ls -l,pwd] }. Does the (( )) have to be the top level?
+--
 
 -- | Reinterpret a Wrap, reading what is inside it as a string of input to the
 -- interpreteter. Any variables are replaced with their values and nested
 -- '(( ))' will be recursively interpreted.
-reinterpret :: Wrap -> Handle -> MoniteM [String]
-reinterpret w inp = do
+reinterpret :: Wrap -> MoniteM [String]
+reinterpret w = do
   ss <- case w of
           (WCmd c) -> replaceVarss c
-          (WPar ws) -> liftM concat $ mapM (\w -> wrapToStr w inp) ws
+          (WPar ws) -> liftM concat $ mapM wrapToStr ws
   (i, o) <- io $ createPipe
-  interpret' (unwords ss) inp o
+  (inp, out) <- liftM pipes get
+  setPipes (inp, o)
+  interpret' (unwords ss)
   io $ hClose o
-  liftM lines $ io $ hGetContents i
+  ss <- liftM lines $ io $ hGetContents i
+  setPipes (inp, out)
+  return ss
 
 -- | Convert a Wrap into a list of strings by converting the commands it is
 -- built of to Strings, and any contained '(( ))' will be reinterpreted.
-wrapToStr :: Wrap -> Handle -> MoniteM [String]
-wrapToStr w inp = case w of
+wrapToStr :: Wrap -> MoniteM [String]
+wrapToStr w = case w of
   (WCmd c) -> replaceVarss c
   (WPar ws) -> do
     io $ putStrLn $ "Wrapping!"
-    liftM concat (mapM (\w -> reinterpret w inp) ws)
+    liftM concat (mapM (\w -> reinterpret w) ws)
 
 -- | Replace all variables in a command with their values
 replaceVarss :: Cmd -> MoniteM [String]
@@ -198,26 +218,30 @@ replaceVars s = liftM words (parseVars s)
 
 -- | Evaluate a top-level expression into a list of strings, by running the
 -- expression and splitting the lines in the output into a list.
-evalLExpToStr :: LExp -> Handle -> MoniteM [String]
-evalLExpToStr e inp = do
+evalLExpToStr :: LExp -> MoniteM [String]
+evalLExpToStr e = do
   (i, o) <- io createPipe
-  evalLExp e inp o
+  (inp, out) <- liftM pipes get
+  setPipes (inp, o)
+  evalLExp e
   io $ hClose o             -- Close the write end of the pipe to read from it
   ss <- io $ hGetContents i
+  setPipes (inp, out)
   return $ (lines ss)
 
 -- | Evaluate an expression into a list of strings by converting it to a
 -- top-level expression.
-evalExpToStr :: Exp -> Handle -> MoniteM [String]
-evalExpToStr e inp = evalLExpToStr (LLe e) inp
+evalExpToStr :: Exp -> MoniteM [String]
+evalExpToStr e = evalLExpToStr (LLe e)
 
 -- | Takes a command in the form of a nonempty list of strings. Runs the
 -- command as a process, with the first element as the binary and the rest as
 -- arguments.
-runCmd :: [String] -> Handle -> Handle -> MoniteM ()
-runCmd c@(s:ss) inp out = do
+runCmd :: [String] -> MoniteM ()
+runCmd c@(s:ss) = do
   env <- get
-  let run = createProcess (proc' s ss (path env) (UseHandle inp) (UseHandle out))
+  let (inp, out) = pipes env
+      run = createProcess (proc' s ss (path env) (UseHandle inp) (UseHandle out))
   -- Catch any errors that occur while running the process, and throw them as
   -- Monite errors instead so they can be cought and printed properly.
   eErrTup <- io $ tryIOError $ run
@@ -242,6 +266,18 @@ runCmd c@(s:ss) inp out = do
                         , errCmd  = printTree (cmd env)
                         , errMsg  = "Invalid command: " ++ (intercalate " " c)
                         }
+
+{--- | Set the current output pipe-}
+{-setOut :: Handle -> MoniteM ()-}
+{-setOut o = modify (\env -> env { pipes = (fst (pipes env), o)})-}
+
+{--- | Set the current input pipe-}
+{-setIn :: Handle -> MoniteM ()-}
+{-setIn i = modify (\env -> env { pipes = (i, snd (pipes env))})-}
+
+-- | Set the current pipes
+setPipes :: (Handle, Handle) -> MoniteM ()
+setPipes p = modify (\env -> env {pipes = p})
 
 -- | Close both ends of a pipe
 closePipe :: (Handle, Handle) -> MoniteM ()
@@ -402,7 +438,7 @@ initEnv = do home <- getCurrentDirectory
 
 -- | An empty environment
 emptyEnv :: FilePath -> Env
-emptyEnv path = Env [M.empty] (lexp "") path
+emptyEnv path = Env [M.empty] (lexp "") path (stdin, stdout)
   where lexp s = LLe $ EWraps $ [WCmd $ CText $ [TStr s]]
 
 -- | Shorthand for io actions

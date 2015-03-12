@@ -82,7 +82,7 @@ interpret' s = do
 -- thrown when executing it
 eval :: Program -> MoniteM ()
 eval (PProg exps) =
-  catchError (mapM_ (\e -> addExp e >> evalLExp e) exps) handle
+  catchError (mapM_ (\e -> addExp e >> evalLetExp e) exps) handle
   where handle err = do
                       io $ hPutStrLn stderr $ "Error executing: " ++ errCmd err
                       io $ hPutStrLn stderr $ "In: " ++ errPath err
@@ -92,20 +92,20 @@ eval (PProg exps) =
 -- | Evaluate a let-expression, updating the environment stack accordingly.
 -- For 'let x = w', the variable x is set to w globaly. With 'let x = w1 in w2'
 -- the variable x is only visible inside 'w2'. The righthandside must be Wrap.
-evalLExp :: LExp -> MoniteM ()
-evalLExp l = case l of
-  (LLet (Lit v) (WPar ws)) -> do sss <- mapM reinterpret ws
-                                 updateVar v (concat sss)
+evalLetExp :: LExp -> MoniteM ()
+evalLetExp l = case l of
+  (LLet (Lit v) (WPar ws))     -> do ss <- evalExpToStr (EWraps ws)
+                                     updateVar v ss
 
-  (LLet (Lit v) w)         -> do sss <- (wrapToStr False) w
-                                 updateVar v sss
-  (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM reinterpret ws
-                                     enterScope v (concat sss)
-                                     evalLExp l
+  (LLet (Lit v) (WCmd c))      -> do ss <- replaceVarss c
+                                     updateVar v ss
+  (LLetIn (Lit v) (WPar ws) l) -> do ss <- evalExpToStr (EWraps ws)
+                                     enterScope v ss
+                                     evalLetExp l
                                      exitScope
-  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr False w
-                                     enterScope v sss
-                                     evalLExp l
+  (LLetIn (Lit v) (WCmd c) l)  -> do ss <- replaceVarss c
+                                     enterScope v ss
+                                     evalLetExp l
                                      exitScope
   (LLe e)                      -> evalExp e
 
@@ -115,7 +115,7 @@ evalExp :: Exp -> MoniteM ()
 evalExp e = case e of
   (EComp lexp (Lit v) e) -> do
     ss <- evalExpToStr e
-    mapM_ (\s -> enterScope v [s] >> evalLExp lexp >> exitScope) ss
+    mapM_ (\s -> enterScope v [s] >> evalLetExp lexp >> exitScope) ss
   (EList cs)             -> do
     sss <- mapM replaceVarss cs
     out <- liftM (snd . pipes) get
@@ -124,54 +124,57 @@ evalExp e = case e of
     case ws of
       [WCmd c] -> evalCmd c
       (w:ws')  -> do
-        ss <- wrapToStr False w
-        sss <- mapM (wrapToStr True) ws'
+        ss <- evalWrapToStr False w          -- The binary shouldn't have quotes
+        sss <- mapM (evalWrapToStr True) ws' -- The arguments should have quotes
         {-io $ putStrLn (show sss)-}
+        -- Interpret the resulting string as a command
         interpret' (unwords (ss ++ concat sss)) >> return ()
 
 -- | Reinterpret a Wrap, reading what is inside it as a string of input to the
 -- interpreteter. Any variables are replaced with their values and nested
 -- '(( ))' will be recursively interpreted.
-reinterpret :: Wrap -> MoniteM [String]
-reinterpret w = do
-  ss <- case w of
-          (WCmd c) -> replaceVarss c
-          (WPar (w':ws)) -> do s <- wrapToStr False w'
-                               ss' <- liftM concat $ mapM (wrapToStr True) ws
-                               return $ s ++ ss'
-  (i, o) <- io $ createPipe
-  (inp, out) <- liftM pipes get
-  setPipes (inp, o)
-  io $ putStrLn $ "Reinterpreting: " ++ (unwords ss)
-  interpret' (unwords ss)
-  io $ hClose o
-  ss <- liftM lines $ io $ hGetContents i
-  setPipes (inp, out)
-  io $ putStrLn $ "Got: " ++ show ss
-  return ss
+{-reinterpret :: Wrap -> MoniteM [String]-}
+{-reinterpret w = do-}
+  {-ss <- case w of-}
+          {-(WCmd c) -> replaceVarss c-}
+          {-(WPar (w':ws)) -> do s <- wrapToStr False w'-}
+                               {-ss' <- liftM concat $ mapM (wrapToStr True) ws-}
+                               {-return $ s ++ ss'-}
+  {-(i, o) <- io $ createPipe-}
+  {-(inp, out) <- liftM pipes get-}
+  {-setPipes (inp, o)-}
+  {-[>io $ putStrLn $ "Reinterpreting: " ++ (unwords ss)<]-}
+  {-interpret' (unwords ss)-}
+  {-io $ hClose o-}
+  {-ss <- liftM lines $ io $ hGetContents i-}
+  {-setPipes (inp, out)-}
+  {-[>io $ putStrLn $ "Got: " ++ show ss<]-}
+  {-return ss-}
 
 -- | Convert a Wrap into a list of strings by converting the commands it is
 -- built of to Strings, and any contained '(( ))' will be reinterpreted.
-wrapToStr :: Bool -> Wrap -> MoniteM [String]
-wrapToStr quote w = case w of
+evalWrapToStr :: Bool -> Wrap -> MoniteM [String]
+evalWrapToStr quote w = case w of
   (WCmd c) -> replaceVarss c
   (WPar ws) -> do
-    io $ putStrLn $ "Wrapping!" ++ printTree w -- TODO: Debug
-    ss <- liftM concat (mapM reinterpret ws)
-    io $ putStrLn $ "Wrap got: " ++ show ss
+    {-io $ putStrLn $ "Wrapping!" ++ printTree w -- TODO: Debug-}
+
+    ss <- evalExpToStr (EWraps ws)
+    {-ss <- liftM concat (mapM reinterpret ws)-}
+    {-io $ putStrLn $ "Wrap got: " ++ show ss-}
     return $ addQuotes quote ss
   where addQuotes False ss = ss
         addQuotes True  ss = ["\"" ++ unwords ss ++ "\""]
 
 
--- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating
--- the contained command otherwise
-evalWrapper :: Wrap -> MoniteM ()
-evalWrapper w  = case w of
-  (WPar ws) -> do ss <- reinterpret w -- TODO: Ta bort ->mapM_ (\w -> evalWrapper w inp out) ws
-                  out <- liftM (snd . pipes) get
-                  mapM_ (io . (hPutStrLn out)) (ss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)
-  (WCmd c)  -> evalCmd c
+{--- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating-}
+{--- the contained command otherwise-}
+{-evalWrapper :: Wrap -> MoniteM ()-}
+{-evalWrapper w  = case w of-}
+  {-(WPar ws) -> do ss <- reinterpret w -- TODO: Ta bort ->mapM_ (\w -> evalWrapper w inp out) ws-}
+                  {-out <- liftM (snd . pipes) get-}
+                  {-mapM_ (io . (hPutStrLn out)) (ss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)-}
+  {-(WCmd c)  -> evalCmd c-}
 
 -- | Evaluate the given command, using the provided pipes for I/O. Returns the
 -- resulting pipes (may be redirected).
@@ -231,12 +234,12 @@ replaceVars s = liftM words (parseVars s)
 
 -- | Evaluate a top-level expression into a list of strings, by running the
 -- expression and splitting the lines in the output into a list.
-evalLExpToStr :: LExp -> MoniteM [String]
-evalLExpToStr e = do
+evalLetExpToStr :: LExp -> MoniteM [String]
+evalLetExpToStr e = do
   (i, o) <- io createPipe
   (inp, out) <- liftM pipes get
   setPipes (inp, o)
-  evalLExp e
+  evalLetExp e
   io $ hClose o             -- Close the write end of the pipe to read from it
   ss <- io $ hGetContents i
   setPipes (inp, out)
@@ -245,7 +248,7 @@ evalLExpToStr e = do
 -- | Evaluate an expression into a list of strings by converting it to a
 -- top-level expression.
 evalExpToStr :: Exp -> MoniteM [String]
-evalExpToStr e = evalLExpToStr (LLe e)
+evalExpToStr e = evalLetExpToStr (LLe e)
 
 -- | Takes a command in the form of a nonempty list of strings. Runs the
 -- command as a process, with the first element as the binary and the rest as

@@ -261,7 +261,8 @@ application to his/her liking. For example:
 \end{verbatim}
 
 \subsubsection{Interesting techniques}
-- Reader stack?
+- Interface with C
+- Reader stack? / Own StateT
 - Implementation of error robust state
 
 
@@ -407,8 +408,9 @@ though there were instances for some transformers, there was none for the
 ExceptT that we use, only for the deprecated ErrorT. Luckily, it was enough to
 run IO-actions within the things we wanted to catch, and IO was one of
 predefined instances. Otherwise we would either have had to create our own
-instance which proved to be tricky, or change our transformer stack to the
-deprecated ErrorT which would have been a step back.
+instance of MonadException which proved to be tricky, change our transformer
+stack to the deprecated ErrorT which would have been a step back, or possibly
+update the monad stack in haskeline with ExceptT instead of ErrorT.
 
 Throughout the project, we noticed that it is hard to nail the grammar in the
 first try, and that it may be good to start over. It took some time getting it
@@ -428,12 +430,13 @@ at their disposal), and then allow the end-user to run a command such as "monite
 --recompile" which would recompile the whole shell with the user defined
 functionality. This is used in applications such as xmonad, and provides the
 end-user with a very rich, and powerful configuration interface. An example of a
-library that claims to do this is dyre, which might be interesting to look into.
+library that claims to do this is 'dyre', which might be interesting to look
+into.
 
-Another way would be to extendthe scripting language with support for functions,
-which we realized was beyond the scope of this course. It would be nice to be
-able to set environment variables in the scripting language, e.g., allow the
-end-user can set his/her own \$PATH.
+Another way would be to extend the scripting language with support for
+functions, which we realized was beyond the scope of this project. It would be
+nice to be able to set environment variables in the scripting language, e.g.,
+allow the end-user can set his/her own \$PATH.
 
 Job control is another missing feature that monite could be extended with
 (probably a necessity for it to be considered a usable shell).

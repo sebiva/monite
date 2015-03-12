@@ -94,16 +94,16 @@ eval (PProg exps) =
 -- the variable x is only visible inside 'w2'. The righthandside must be Wrap.
 evalLExp :: LExp -> MoniteM ()
 evalLExp l = case l of
-  (LLet (Lit v) (WPar ws)) -> do sss <- mapM (\w -> reinterpret w) ws
+  (LLet (Lit v) (WPar ws)) -> do sss <- mapM reinterpret ws
                                  updateVar v (concat sss)
 
-  (LLet (Lit v) w)         -> do sss <- wrapToStr w
+  (LLet (Lit v) w)         -> do sss <- (wrapToStr False) w
                                  updateVar v sss
-  (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM (\w -> reinterpret w) ws
+  (LLetIn (Lit v) (WPar ws) l) -> do sss <- mapM reinterpret ws
                                      enterScope v (concat sss)
                                      evalLExp l
                                      exitScope
-  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr w
+  (LLetIn (Lit v) w l)         -> do sss <- wrapToStr False w
                                      enterScope v sss
                                      evalLExp l
                                      exitScope
@@ -120,7 +120,15 @@ evalExp e = case e of
     sss <- mapM replaceVarss cs
     out <- liftM (snd . pipes) get
     mapM_ (io . (hPutStrLn out)) (map unwords sss)
-  (EWraps ws)            -> mapM_ (\w -> evalWrapper w) ws
+  (EWraps ws)            -> do
+    case ws of
+      [WCmd c] -> evalCmd c
+      (w:ws')  -> do
+        ss <- wrapToStr False w
+        sss <- mapM (wrapToStr True) ws'
+        {-io $ putStrLn (show sss)-}
+        interpret' (unwords (ss ++ concat sss)) >> return ()
+{-mapM_ evalWrapper ws -- TODO: Only the first one is the binary!-}
 
 -- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating
 -- the contained command otherwise
@@ -177,7 +185,9 @@ reinterpret :: Wrap -> MoniteM [String]
 reinterpret w = do
   ss <- case w of
           (WCmd c) -> replaceVarss c
-          (WPar ws) -> liftM concat $ mapM wrapToStr ws
+          (WPar (w':ws)) -> do s <- wrapToStr False w'
+                               ss' <- liftM concat $ mapM (wrapToStr True) ws
+                               return $ s ++ ss'
   (i, o) <- io $ createPipe
   (inp, out) <- liftM pipes get
   setPipes (inp, o)
@@ -189,12 +199,15 @@ reinterpret w = do
 
 -- | Convert a Wrap into a list of strings by converting the commands it is
 -- built of to Strings, and any contained '(( ))' will be reinterpreted.
-wrapToStr :: Wrap -> MoniteM [String]
-wrapToStr w = case w of
+wrapToStr :: Bool -> Wrap -> MoniteM [String]
+wrapToStr quote w = case w of
   (WCmd c) -> replaceVarss c
   (WPar ws) -> do
-    io $ putStrLn $ "Wrapping!"
-    liftM concat (mapM (\w -> reinterpret w) ws)
+    io $ putStrLn $ "Wrapping!" -- TODO: Debug
+    ss <- liftM concat (mapM reinterpret ws)
+    return $ addQuotes quote ss
+  where addQuotes False ss = ss
+        addQuotes True  ss = ["\"" ++ unwords ss ++ "\""]
 
 -- | Replace all variables in a command with their values
 replaceVarss :: Cmd -> MoniteM [String]

@@ -1,7 +1,7 @@
 # stdout: x\ny\n\z
 { echo $i : i <- [x, y, z] } ;
 # stdout: x\ny\n\z
-{ (($i)) : i <- [echo x, echo y, echo z] } ;
+{ $i : i <- [echo x, echo y, echo z] } ;
 # stdout: yyy\n
 { echo $i : i <- [yyy] } ;
 # stdout: zzz\n

@@ -126,58 +126,38 @@ evalExp e = case e of
       (w:ws')  -> do
         ss <- evalWrapToStr False w          -- The binary shouldn't have quotes
         sss <- mapM (evalWrapToStr True) ws' -- The arguments should have quotes
-        {-io $ putStrLn (show sss)-}
         -- Interpret the resulting string as a command
-        interpret' (unwords (ss ++ concat sss)) >> return ()
+        interpret' (unwords (ss ++ concat sss)) >> return () -- TODO: Unwords? Unlines?
 
--- | Reinterpret a Wrap, reading what is inside it as a string of input to the
--- interpreteter. Any variables are replaced with their values and nested
--- '(( ))' will be recursively interpreted.
-{-reinterpret :: Wrap -> MoniteM [String]-}
-{-reinterpret w = do-}
-  {-ss <- case w of-}
-          {-(WCmd c) -> replaceVarss c-}
-          {-(WPar (w':ws)) -> do s <- wrapToStr False w'-}
-                               {-ss' <- liftM concat $ mapM (wrapToStr True) ws-}
-                               {-return $ s ++ ss'-}
-  {-(i, o) <- io $ createPipe-}
-  {-(inp, out) <- liftM pipes get-}
-  {-setPipes (inp, o)-}
-  {-[>io $ putStrLn $ "Reinterpreting: " ++ (unwords ss)<]-}
-  {-interpret' (unwords ss)-}
-  {-io $ hClose o-}
-  {-ss <- liftM lines $ io $ hGetContents i-}
-  {-setPipes (inp, out)-}
-  {-[>io $ putStrLn $ "Got: " ++ show ss<]-}
-  {-return ss-}
+-- | Evaluate a let expression into a list of strings, by running the
+-- expression and splitting the lines in the output into a list.
+evalLetExpToStr :: LExp -> MoniteM [String]
+evalLetExpToStr e = do
+  (i, o) <- io createPipe
+  (inp, out) <- liftM pipes get
+  setPipes (inp, o)
+  evalLetExp e
+  io $ hClose o             -- Close the write end of the pipe to read from it
+  ss <- io $ hGetContents i
+  setPipes (inp, out)
+  return $ (lines ss)
+
+-- | Evaluate an expression into a list of strings by converting it to a
+-- top-level expression.
+evalExpToStr :: Exp -> MoniteM [String]
+evalExpToStr e = evalLetExpToStr (LLe e) -- TODO: Remove?
 
 -- | Convert a Wrap into a list of strings by converting the commands it is
 -- built of to Strings, and any contained '(( ))' will be reinterpreted.
 evalWrapToStr :: Bool -> Wrap -> MoniteM [String]
 evalWrapToStr quote w = case w of
   (WCmd c) -> replaceVarss c
-  (WPar ws) -> do
-    {-io $ putStrLn $ "Wrapping!" ++ printTree w -- TODO: Debug-}
+  (WPar ws) -> liftM (addQuotes quote) (evalExpToStr (EWraps ws))
+  where addQuotes True  ss = ["\"" ++ unwords ss ++ "\""]
+        addQuotes _     ss = ss
 
-    ss <- evalExpToStr (EWraps ws)
-    {-ss <- liftM concat (mapM reinterpret ws)-}
-    {-io $ putStrLn $ "Wrap got: " ++ show ss-}
-    return $ addQuotes quote ss
-  where addQuotes False ss = ss
-        addQuotes True  ss = ["\"" ++ unwords ss ++ "\""]
-
-
-{--- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating-}
-{--- the contained command otherwise-}
-{-evalWrapper :: Wrap -> MoniteM ()-}
-{-evalWrapper w  = case w of-}
-  {-(WPar ws) -> do ss <- reinterpret w -- TODO: Ta bort ->mapM_ (\w -> evalWrapper w inp out) ws-}
-                  {-out <- liftM (snd . pipes) get-}
-                  {-mapM_ (io . (hPutStrLn out)) (ss) -- TODO: map concat? : 2015-03-11 - 19:34:50 (John)-}
-  {-(WCmd c)  -> evalCmd c-}
-
--- | Evaluate the given command, using the provided pipes for I/O. Returns the
--- resulting pipes (may be redirected).
+-- | Evaluate the given command, using the current pipes for I/O and
+-- redirections to file.
 evalCmd :: Cmd -> MoniteM ()
 evalCmd c = case c of
   (CText ts)     -> do
@@ -232,24 +212,6 @@ replaceVarss c = case c of
 replaceVars :: String -> MoniteM [String]
 replaceVars s = liftM words (parseVars s)
 
--- | Evaluate a top-level expression into a list of strings, by running the
--- expression and splitting the lines in the output into a list.
-evalLetExpToStr :: LExp -> MoniteM [String]
-evalLetExpToStr e = do
-  (i, o) <- io createPipe
-  (inp, out) <- liftM pipes get
-  setPipes (inp, o)
-  evalLetExp e
-  io $ hClose o             -- Close the write end of the pipe to read from it
-  ss <- io $ hGetContents i
-  setPipes (inp, out)
-  return $ (lines ss)
-
--- | Evaluate an expression into a list of strings by converting it to a
--- top-level expression.
-evalExpToStr :: Exp -> MoniteM [String]
-evalExpToStr e = evalLetExpToStr (LLe e)
-
 -- | Takes a command in the form of a nonempty list of strings. Runs the
 -- command as a process, with the first element as the binary and the rest as
 -- arguments.
@@ -282,15 +244,6 @@ runCmd c@(s:ss) = do
                         , errCmd  = printTree (cmd env)
                         , errMsg  = "Invalid command: " ++ (intercalate " " c)
                         }
-
-{--- | Set the current output pipe-}
-{-setOut :: Handle -> MoniteM ()-}
-{-setOut o = modify (\env -> env { pipes = (fst (pipes env), o)})-}
-
-{--- | Set the current input pipe-}
-{-setIn :: Handle -> MoniteM ()-}
-{-setIn i = modify (\env -> env { pipes = (i, snd (pipes env))})-}
-
 -- | Set the current pipes
 setPipes :: (Handle, Handle) -> MoniteM ()
 setPipes p = modify (\env -> env {pipes = p})
@@ -298,6 +251,7 @@ setPipes p = modify (\env -> env {pipes = p})
 -- | Close both ends of a pipe
 closePipe :: (Handle, Handle) -> MoniteM ()
 closePipe (i, o) = io $ hClose i >> hClose o
+
 -- | Replace all $var in a string with their definitions in the environment
 parseVars :: String -> MoniteM String
 parseVars s = do
@@ -408,7 +362,8 @@ enterScope v s = modify (\env -> env {vars = M.insert v s M.empty : (vars env)})
 exitScope :: MoniteM ()
 exitScope = modify (\env -> env {vars = tail (vars env)})
 
--- | Lookup a variable in the environment stack
+-- | Lookup a variable in the environment stack, returning a list contining the
+-- empty string if the variable does not exist.
 lookupVar :: Var -> MoniteM [String]
 lookupVar v = do
   vs <- liftM vars get

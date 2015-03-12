@@ -48,7 +48,10 @@ loop :: Env -> InputT IO ()
 loop env = do
   -- get user command
   home <- liftIO getHomeDirectory
-  let prmpt = prompt (path env) home
+  let prmpt        = usr ++ prompt (path env) home
+      usr          = case M.lookup "USER" (head $ vars env) of
+                      Nothing    -> ""
+                      Just [usr] -> usr
   minput <- handleInterrupt (return $ Just "") (getInputLine (prmpt ++ " λ> "))
   case minput of
     Nothing    -> exitLoop

@@ -12,7 +12,7 @@ import System.Exit (exitFailure)
 import System.Directory (setCurrentDirectory, getDirectoryContents, removeFile)
 import Control.Monad.IO.Class
 import Control.Monad (foldM)
-import Data.List (isSuffixOf)
+import Data.List (isSuffixOf, sort)
 
 -- | Run all tests using the supplied binary, and the directory to the test
 -- files
@@ -41,7 +41,7 @@ runTest bin path = do
   hClose o
   output <- hGetContents i
   eOutput <- readFile (path ++ ".output")
-  if output == eOutput then return True
+  if sort (lines output) == sort (lines eOutput) then return True
   else do putStrLn ("----------------------------------------------------")
           putStrLn ("-- Testfile: " ++ path ++ " failed")
           putStrLn ("----------------------------------------------------")

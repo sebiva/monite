@@ -87,6 +87,8 @@ mySettings = do
     defaultSettings { historyFile = Just $ home ++ "/.monitehistory" }
 
 -- | Read the end-user preferences from file
+--
+-- > https://hackage.haskell.org/package/haskeline-0.7.1.3/docs/System-Console-Haskeline.html#t:Prefs
 myPrefs :: IO Prefs
 myPrefs = do
   home <- getHomeDirectory

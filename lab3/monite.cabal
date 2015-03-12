@@ -14,8 +14,8 @@ maintainer:          john.martinsson@gmail.com, ivarsson.sebastian@gmail.com
 -- copyright:
 category:            Languages
 build-type:          Simple
--- extra-source-files:
 cabal-version:       >=1.10
+data-files:          test/scripts/good/*.sh, test/scripts/good/*.sh.output
 
 --------------------------------------------------------------------------------
 

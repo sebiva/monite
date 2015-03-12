@@ -8,7 +8,7 @@ echo $y ;    # stdout: z
 {let x = (($i)) : i <- [echo x, echo y, echo z]} ;
 
 echo $x ;    # stdout: z
-echo $i ;    # stdout: 
+#echo $i ;    # stdout: 
 
 let y = y ;
 let x = $y ;

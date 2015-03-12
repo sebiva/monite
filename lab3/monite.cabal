@@ -64,15 +64,3 @@ Test-Suite test-scripts
   build-depends:      base >= 4.7 && < 4.8, monite >= 0.1.0.0,
                       process >= 1.2.0.0, transformers >= 0.4.2.0,
                       directory >= 1.2.1.0
-
--- | Build the test suite for testing the monite grammar parsing
-Test-Suite test-grammars
-  type:               exitcode-stdio-1.0
-  -- Source dir for test files
-  hs-source-dirs:     test
-  -- Main file
-  main-is:            TestGrammar.hs
-  default-language:   Haskell2010
-  build-depends:      base >= 4.7 && < 4.8, monite >= 0.1.0.0,
-                      process >= 1.2.0.0, transformers >= 0.4.2.0,
-                      directory >= 1.2.1.0

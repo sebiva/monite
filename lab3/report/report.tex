@@ -197,11 +197,26 @@ we understand if the result is limited to a partial solution or even a sketch of
 the implementation along with a description (in your report) of what
 difficulties you faced when trying to implement it.
 
+We have focused on the tab-completion (see Completion.hs) part of haskeline in
+this project, as it is what we sought out to use in our shell implementation. We
+have extended the previous interface in the module
+System.Console.Haskeline.Completion with a new function called listPathFiles,
+which instead of only looking in the directory which the application is executed
+from, looks in a set of supplied directories. In our case, this is used to
+tab-complete binary commands when written in the shell. We also realized that
+the interface could be further improved by a small compositional language in
+which the application user could build complex completion functions from simple
+completion functions, and in such a way allow easy composition of said
+functions. For a suggestion of such an interface (sadly undefined) see the end
+of the file System/Console/Haskeline/Completion.hs.
+
 \textbf{Advanced usage / tutorial}: Show some examples of what the library can be used
 for. The examples must demonstrate a deep understanding of the library (or part
 of it). Note: This task is potentially much simpler than the other two. Making a
 good tutorial is enough for a passing grade on this assignment, but is unlikely
 to yield a higher grade.
+
+The example of how the library can be used is the implementaiton monite.
 
 \subsection{Task 2 - Documentation}
 Haskeline is a user interface used to handle line input for command-line
@@ -209,29 +224,35 @@ programs. It is primarily used to enable a rich editing interface when entering
 input on the command line, for example, functionality such as Emcas- and
 Vim-Mode is present by default.
 
-It is also highly customizable, as the user of the library can define their own
-'completion functions', which are basically the function that is used
-intelligently complete a command that is being entered on the command-line.
+It is also highly customizable, as the application programmer can define their
+own 'completion functions', which are basically the function that is used
+intelligently suggest completions for a command that is being entered on the
+command-line.
 
 \subsubsection{Description of library interface}
-Haskeline provides a simple, and easy to use interface. The documentation for
-this interface is good, and we will therefore give a brief summary of how to use
-it, and what functionality is available to the application programmer.
+Haskeline provides an easy to use interface. The documentation for this
+interface is good, and we will therefore give a brief summary of how to use it,
+and what functionality is available to the application programmer.
 
 \subsubsection{Settings}
 The application programmer has a couple of settings available. It is possible to
 set how history should be handeled, i.e., which history file to use, and if
 history should be automatically added to the history file. History in this
 context is all non-empty lines that has been entered into the command-line of
-the application.
+the application. This enables the end-user of the application to search through
+previously entered commands, or simply browse through them.
 
-The more interesting setting is the custom 'completion function', which allows
-the application programmer to decide how the input should be completed.
+Another quite useful setting is the ability to set custom 'completion
+functions', which allows the application programmer to decide in what manner the
+tab completions should be handled. The interface for using these were in our
+case a little cumbersome, and we have made som suggestions on how to improve
+upon this with a compositional interface for completion functions.
 
 \subsection{Preferences}
-Haskeline also provides some basic functionality regarding preferences, which by
-default is read from the file $\mathtt{\sim}$\textit{/.haskeline}. This allows the end user to
-configure the application to his/her liking. For example:
+Haskeline also provides the application programmer with the ability to read
+end-user preferences from a file, which by default is read from the file
+$\mathtt{\sim}$\textit{/.haskeline}. This allows the end user to configure the
+application to his/her liking. For example:
 
 \begin{verbatim}
   editMode: Vi
@@ -242,6 +263,7 @@ configure the application to his/her liking. For example:
 \subsubsection{Interesting techniques}
 - Reader stack?
 - Implementation of error robust state
+
 
 \subsection{Monite shell}
 Monite shell is a shell written in Haskell. Monite shell is build using a couple
@@ -362,10 +384,19 @@ This will print first the text ``ls -l | wc'' and then the result of running tha
 \textbf{Missing features}:
 More general configuration file, the configuration supported now is that which
 haskeline provides by default, it would be nice to be able to set a custom
-prompt, and define custom functions. However, this would entail extending the
-scripting language with support for functions, which we realized was beyond the
-scope of this course. It would be nice to be able to set environment variables
-in the scripting language, e.g., allow the end-user can set his/her own \$PATH.
+prompt, and define custom functions. This could be done in many ways, and one
+interesting way would be to expose a haskell config file to the end-user, in
+which he/she could define their own functions (with the whole power of haskell
+at their disposal), and then allow the end-user to run a command such as "monite
+--recompile" which would recompile the whole shell with the user defined
+functionality. This is used in applications such as xmonad, and provides the
+end-user with a very rich, and powerful configuration interface. An example of a
+library that claims to do this is dyre, which might be interesting to look into.
+
+Another way would be to extendthe scripting language with support for functions,
+which we realized was beyond the scope of this course. It would be nice to be
+able to set environment variables in the scripting language, e.g., allow the
+end-user can set his/her own \$PATH.
 
 Job control is another missing feature that monite could be extended with
 (probably a necessity for it to be considered a usable shell).

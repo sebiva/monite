@@ -203,7 +203,7 @@ wrapToStr :: Bool -> Wrap -> MoniteM [String]
 wrapToStr quote w = case w of
   (WCmd c) -> replaceVarss c
   (WPar ws) -> do
-    io $ putStrLn $ "Wrapping!" -- TODO: Debug
+    {-io $ putStrLn $ "Wrapping!" -- TODO: Debug-}
     ss <- liftM concat (mapM reinterpret ws)
     return $ addQuotes quote ss
   where addQuotes False ss = ss
@@ -410,12 +410,8 @@ lookupVar :: Var -> MoniteM [String]
 lookupVar v = do
   vs <- liftM vars get
   case lookupVar' v vs of
+    -- The value of an undefined variable is the empty string
     Nothing -> return [""]
---      env <- get
---      throwError $ Err {
---          errPath = path env
---        , errCmd  = printTree (cmd env)
---        , errMsg  = "Undefined variable: " ++ show v}
     Just v  -> return v
 
 -- | Lookup a variable in the environment stack, returning the topmost one.

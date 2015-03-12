@@ -91,8 +91,10 @@ isExitCode s = s `elem` ["quit", "exit", ":q"]
 -- moniteshell.
 myComplete :: (MonadIO m) => CompletionFunc m
 myComplete line@(left, right)
-  | isBinaryCommand left =
-  completeWord (Just '\\') ("\"\'" ++ filenameWordBreakChars) listBinFiles $ line
+  | isBinaryCommand left = do
+  binPaths <- liftIO $ getSearchPath
+  completeWord (Just '\\') ("\"\'" ++ filenameWordBreakChars)
+    (listPathFiles binPaths) $ line
   | otherwise =
   completeWord (Just '\\') ("\"\'" ++ filenameWordBreakChars) listFiles $ line
 
@@ -105,47 +107,3 @@ isBinaryCommand cmd = l == 1 && (not b1) && (not b2)
         b1   = last rcmd == ' '
         b2   = head rcmd == '.'
         l    = length (words rcmd)
-
--------------------------------------------------------------------------------
---
--- TODO: Extend haskeline with this completion function : 2015-03-11 - 11:25:27 (John)
--- | Given the input of the first word to be completed, it will return the
--- matching completions found in the users path.
-listBinFiles :: (MonadIO m) => FilePath -> m [Completion]
-listBinFiles path = liftIO $ do
-  binPaths <- liftM (map (++ "/" ++ path)) getSearchPath -- TODO: Get path other way : 2015-03-10 - 13:03:29 (John)
-  comps <- mapM listBinFiles' binPaths
-  return (concat comps)
-
--- | List all of the files or folders beginning with this path.
-listBinFiles' :: MonadIO m => FilePath -> m [Completion]
-listBinFiles' path = liftIO $ do
-    fixedDir <- fixPath dir
-    dirExists <- doesDirectoryExist fixedDir
-    binFiles <- if not dirExists
-                    then return []
-                    else fmap (map completion . filterPrefix)
-                            $ getDirectoryContents fixedDir
-
-    let allFiles = binFiles
-    -- The replacement text should include the directory part, and also
-    -- have a trailing slash if it's itself a directory.
-    forM allFiles $ \c -> do
-            isDir <- doesDirectoryExist (fixedDir </> replacement c)
-            return $ c -- setReplacement fullName $ alterIfDir isDir c
-  where
-    (dir, file) = splitFileName path
-    filterPrefix = filter (\f -> notElem f [".",".."]
-                                        && file `isPrefixOf` f)
-
--- turn a user-visible path into an internal version useable by System.FilePath.
-fixPath :: String -> IO String
--- For versions of filepath < 1.2
-fixPath "" = return "."
-fixPath ('~':c:path) | isPathSeparator c = do
-    home <- getHomeDirectory
-    return (home </> path)
-fixPath path = return path
-
-completion :: String -> Completion
-completion str = Completion str str False

@@ -128,7 +128,41 @@ evalExp e = case e of
         sss <- mapM (wrapToStr True) ws'
         {-io $ putStrLn (show sss)-}
         interpret' (unwords (ss ++ concat sss)) >> return ()
-{-mapM_ evalWrapper ws -- TODO: Only the first one is the binary!-}
+
+-- | Reinterpret a Wrap, reading what is inside it as a string of input to the
+-- interpreteter. Any variables are replaced with their values and nested
+-- '(( ))' will be recursively interpreted.
+reinterpret :: Wrap -> MoniteM [String]
+reinterpret w = do
+  ss <- case w of
+          (WCmd c) -> replaceVarss c
+          (WPar (w':ws)) -> do s <- wrapToStr False w'
+                               ss' <- liftM concat $ mapM (wrapToStr True) ws
+                               return $ s ++ ss'
+  (i, o) <- io $ createPipe
+  (inp, out) <- liftM pipes get
+  setPipes (inp, o)
+  io $ putStrLn $ "Reinterpreting: " ++ (unwords ss)
+  interpret' (unwords ss)
+  io $ hClose o
+  ss <- liftM lines $ io $ hGetContents i
+  setPipes (inp, out)
+  io $ putStrLn $ "Got: " ++ show ss
+  return ss
+
+-- | Convert a Wrap into a list of strings by converting the commands it is
+-- built of to Strings, and any contained '(( ))' will be reinterpreted.
+wrapToStr :: Bool -> Wrap -> MoniteM [String]
+wrapToStr quote w = case w of
+  (WCmd c) -> replaceVarss c
+  (WPar ws) -> do
+    io $ putStrLn $ "Wrapping!" ++ printTree w -- TODO: Debug
+    ss <- liftM concat (mapM reinterpret ws)
+    io $ putStrLn $ "Wrap got: " ++ show ss
+    return $ addQuotes quote ss
+  where addQuotes False ss = ss
+        addQuotes True  ss = ["\"" ++ unwords ss ++ "\""]
+
 
 -- | Evaluate a wrapper, reinterpreting it if it has '(( ))' and just evaluating
 -- the contained command otherwise
@@ -174,40 +208,6 @@ evalCmd c = case c of
                       evalCmd c'
                       io $ hClose h
                       setPipes (inp, out)
-
--- TODO: THis should not work: { echo (($i)) ls : i <- [ls -l,pwd] }. Does the (( )) have to be the top level?
---
-
--- | Reinterpret a Wrap, reading what is inside it as a string of input to the
--- interpreteter. Any variables are replaced with their values and nested
--- '(( ))' will be recursively interpreted.
-reinterpret :: Wrap -> MoniteM [String]
-reinterpret w = do
-  ss <- case w of
-          (WCmd c) -> replaceVarss c
-          (WPar (w':ws)) -> do s <- wrapToStr False w'
-                               ss' <- liftM concat $ mapM (wrapToStr True) ws
-                               return $ s ++ ss'
-  (i, o) <- io $ createPipe
-  (inp, out) <- liftM pipes get
-  setPipes (inp, o)
-  interpret' (unwords ss)
-  io $ hClose o
-  ss <- liftM lines $ io $ hGetContents i
-  setPipes (inp, out)
-  return ss
-
--- | Convert a Wrap into a list of strings by converting the commands it is
--- built of to Strings, and any contained '(( ))' will be reinterpreted.
-wrapToStr :: Bool -> Wrap -> MoniteM [String]
-wrapToStr quote w = case w of
-  (WCmd c) -> replaceVarss c
-  (WPar ws) -> do
-    {-io $ putStrLn $ "Wrapping!" -- TODO: Debug-}
-    ss <- liftM concat (mapM reinterpret ws)
-    return $ addQuotes quote ss
-  where addQuotes False ss = ss
-        addQuotes True  ss = ["\"" ++ unwords ss ++ "\""]
 
 -- | Replace all variables in a command with their values
 replaceVarss :: Cmd -> MoniteM [String]

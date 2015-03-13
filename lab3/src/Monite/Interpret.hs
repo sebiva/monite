@@ -206,9 +206,14 @@ replaceVarss c = case c of
                       (TLit (Lit s)) -> s
 
 
--- | Replace all variables in a literal with their values
+-- | Replace all variables in a literal with their values. Also replaces any
+-- '~' by the value of $HOME.
 replaceVars :: String -> MoniteM [String]
-replaceVars s = liftM words (parseVars s)
+replaceVars s = do home <- liftM concat $ lookupVar "HOME"
+                   liftM (words . replaceTilde home) (parseVars s)
+  where replaceTilde _  ""       = ""
+        replaceTilde home ('~':ss) = home ++ replaceTilde home ss
+        replaceTilde home (c  :ss) = c:(replaceTilde home ss)
 
 -- | Takes a command in the form of a nonempty list of strings. Runs the
 -- command as a process, with the first element as the binary and the rest as
@@ -302,7 +307,7 @@ changeWorkingDirectory command = do
           (t:[]) -> return t
           ss     -> throwError $ err env "Too many arguments to cd"
 
-  finalPath <- io $ buildPath (path env) newPath
+  let finalPath = buildPath (path env) newPath
   exists <- io (doesDirectoryExist finalPath)
 
   if not exists
@@ -319,12 +324,8 @@ changeWorkingDirectory command = do
             }
 
 -- | Builds a valid path from the old path and the new path
-buildPath :: FilePath -> FilePath -> IO FilePath
-buildPath old new = case new of
-  ('~':'/':path) -> do               -- if ~ , find the home directory
-    home <- liftM addTrailingPathSeparator getHomeDirectory
-    return $ home ++ (dropTrailingPathSeparator path)
-  _     -> return $ fixPath (splitDirectories (normalise (old </> new))) []
+buildPath :: FilePath -> FilePath -> FilePath
+buildPath old new = fixPath (splitDirectories (normalise (old </> new))) []
 
 -- | Given a split path, it will build a new path from the parsed path atoms,
 -- going up on "..".

@@ -1,0 +1,25 @@
+Since we use our own version of haskeline we need to install it from a tarball,
+and in order to resolve cabal dependencies correctly, haskeline must be built
+using transformers >= 0.4.2.0
+
+INSTALL:
+--------
+
+cabal sandbox init
+cabal install transformers-0.4.3.0
+cabal install haskeline-0.7.1.4.tar.gz
+cabal install --only-dependencies
+
+CONFIGURATION:
+--------------
+
+cabal configure
+
+or with tests
+
+cabal configure --enable-tests
+
+BUILD:
+------
+
+cabal build

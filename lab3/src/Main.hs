@@ -7,7 +7,6 @@ import System.Console.Haskeline
 import System.Directory
 import System.FilePath
 
-import Control.Exception (AsyncException(..))
 import Control.Monad.Except ( ExceptT, runExceptT )
 import Control.Monad.State.Lazy ( MonadState, StateT, evalStateT, get, modify, lift )
 import Control.Monad.IO.Class ( liftIO, MonadIO )

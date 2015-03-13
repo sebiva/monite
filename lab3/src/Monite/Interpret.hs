@@ -1,10 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Monite.Interpret (
-    interpret     -- :: String -> IO ()
-  , initEnv
-  , emptyEnv
-  , MoniteM (..)
+    MoniteM (..)
   , Env (..)
+  , interpret     -- :: String -> IO ()
+  , initEnv       -- :: IO Env
+  , emptyEnv      -- :: FilePath -> Env
   )
 where
 
@@ -26,14 +26,12 @@ import System.Environment ( getEnvironment )
 import System.FilePath
 import System.Console.Haskeline
 
-import Control.Exception (AsyncException(..))
 import Control.Monad ( Monad, liftM, foldM )
 import Control.Applicative ( Applicative )
 import Control.Monad.Except ( ExceptT, runExceptT, MonadError (..) )
 import Control.Monad.State.Lazy ( MonadState, StateT (..), get, modify )
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 
-import Data.List (intercalate)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
@@ -239,10 +237,10 @@ runCmd c@(s:ss) = do
                     -- Terminate the process and wait for it to exit to avoid zombies
                     liftIO $ terminateProcess p
                     liftIO $ waitForProcess p
-                    return $ Just $ "Command aborted: " ++ (intercalate " " c)
+                    return $ Just $ "Command aborted: " ++ unwords c
         err env   = Err { errPath = path env
                         , errCmd  = printTree (cmd env)
-                        , errMsg  = "Invalid command: " ++ (intercalate " " c)
+                        , errMsg  = "Invalid command: " ++ unwords c
                         }
 -- | Set the current pipes
 setPipes :: (Handle, Handle) -> MoniteM ()
@@ -258,7 +256,7 @@ parseVars s = do
   if var == "" then return s else do
     ss <- lookupVar var
     rest <- parseVars after
-    return (before ++ intercalate " " ss ++ rest)
+    return (before ++ unwords ss ++ rest)
   where before  = takeWhile (/='$') s
         var     = takeWhile valid (drop (length before + 1) s)
         after   = drop (length before + 1 + length var) s

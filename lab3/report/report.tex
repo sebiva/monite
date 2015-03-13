@@ -86,108 +86,7 @@
 \maketitle
 \thispagestyle{fancy}
 
-
-\section{Part I}
-For this assignment, we have chosen the package ‘haskeline’. Haskeline is used
-to provide a more advanced means of getting input from the user than using the
-standard ‘getLine’ function in Haskell. It provides functionality similar to
-that of the GNU 'readline' library for C, used in many linux applications. We
-think haskeline is an interesting package as it provides a very easy way of
-getting a nice input interface for your haskell command line applications.
-
-Our idea is to implement a simple shell in haskell using this library along with
-the process library to pass on the calls to the system binaries. In order to
-make it a bit more interesting, we thought it would be fun to add some basic
-scripting functionality to the shell (as in bash/zsh). Since the project is so
-short, this scripting language would have to be very limited. The things we have
-planned are:
-
-Variables using let expressions, for example:
-\begin{verbatim}
-  let $x = ls -la in x | wc; cd ..; x
-\end{verbatim}
-
-Which would be equivalent to:
-
-\begin{verbatim}
-  ls -la | wc; cd ..; ls -la
-\end{verbatim}
-
-Not only should it be possible to have variables in scope for the coming
-command, but also for the whole session:
-
-\begin{verbatim}
-  let $x = hello; echo $x
-\end{verbatim}
-
-List comprehensions over lists of output values from another command:
-
-\begin{verbatim}
-  [ echo $x | $x <- ls ]
-\end{verbatim}
-
-Which would correspond to (in zsh):
-
-\begin{verbatim}
-  for $f in $(ls); do echo $f; done
-\end{verbatim}
-
-Functions (this is by far the hardest part, and may not be feasible for such a small project):
-
-\begin{verbatim}
-  let f n = n + 1 in echo (f 0)
-\end{verbatim}
-
-Which would be interpreted / evaluated as:
-
-\begin{verbatim}
-  echo 1
-\end{verbatim}
-
-In order to write such a shell application, we would need to write a parser for
-the user input. Luckily, the package 'bnfc' makes it easy to generate a parser
-automatically from a specified grammar, and by having a very restricted set of
-features it should not be too hard to write those rules.
-
-With a finished parser, the challenge will be to put it all together, i.e.,
-handling user input via haskeline, parsing (and interpreting) the scripting
-language via the bnfc generated parser, and handling system binary execution via
-the process library. Our haskell shell will also need to handle the state of the
-shell, that is, the current path and variables. One possible extension would be
-to implement even more advanced shell functionality such as job control (way out
-of scope for this project, but it would be cool to have).
-
-
-We believe this project would cover the course goals in the following ways:
-
-\textbf{DSLs}: Both bnfc and haskeline are DSLs, so working with them will require
-understanding how they work. Our own scripting language will be a DSL in itself,
-and by implementing it, we will need to handle both the concrete and abstract
-syntax of our language, as well as the semantics when evaluating it.
-
-\textbf{Types}: Writing the code for this project will inevitably include writing our own
-types, and since our shell will no doubt have to be at least in the IO monad
-(and the State monad), we will use monad transformers to construct it. Also, the
-abstract syntax will be an algebraic datatype.  The haskeline library uses quite
-a big stack of monad transformers (mostly ReaderT). If functions are to be
-implemented in our shell language, we might need to use a GADT to model the
-expressions.
-
-\textbf{Spec / Testing}: Ideally, we would also like to create  a proper testsuite
-(preferably using quickCheck) for our program, but as time will be very limited,
-this will only be done if there is time left. Since the program will be mostly
-monadic, proving properties might be hard.
-
-We realise that this might be an ambitious undertaking, and we have consulted
-one of the TAs about the project. The recommendation was to focus on the
-haskeline library, and instead question it’s implementation choices, and try to
-make suggestions on how to improve upon them. However, we feel that writing a
-simple shell could be a really interesting project, and we would like to give it
-a try, but, should we realise early that this is not feasible within the limited
-time-frame of this course, we will instead go with the TAs recommendation and
-focus on the haskeline library itself.
-
-\section{Part II}
+\section{Assignment 3, Part II}
 
 \subsection{Task 1 - Writing code}
 \textbf{Modification / extension}: Show how the library could be changed to improve it in
@@ -216,7 +115,11 @@ of it). Note: This task is potentially much simpler than the other two. Making a
 good tutorial is enough for a passing grade on this assignment, but is unlikely
 to yield a higher grade.
 
-The example of how the library can be used is the implementaiton monite.
+The example of how the library can be used is the implementaiton of our shell
+monite. We chose to try and create an interesting application to show the usage
+of haskeline, and in order to get a fairly functional shell working, quite some
+work was required. We thought it would be more interesting to see an actual
+working application and put in this work in order to get it working properly.
 
 \subsection{Task 2 - Documentation}
 Haskeline is a user interface used to handle line input for command-line
@@ -440,5 +343,109 @@ allow the end-user can set his/her own \$PATH.
 
 Job control is another missing feature that monite could be extended with
 (probably a necessity for it to be considered a usable shell).
+
+\appendix
+
+\section{Part I - (Same as last submission)}
+For this assignment, we have chosen the package ‘haskeline’. Haskeline is used
+to provide a more advanced means of getting input from the user than using the
+standard ‘getLine’ function in Haskell. It provides functionality similar to
+that of the GNU 'readline' library for C, used in many linux applications. We
+think haskeline is an interesting package as it provides a very easy way of
+getting a nice input interface for your haskell command line applications.
+
+Our idea is to implement a simple shell in haskell using this library along with
+the process library to pass on the calls to the system binaries. In order to
+make it a bit more interesting, we thought it would be fun to add some basic
+scripting functionality to the shell (as in bash/zsh). Since the project is so
+short, this scripting language would have to be very limited. The things we have
+planned are:
+
+Variables using let expressions, for example:
+\begin{verbatim}
+  let $x = ls -la in x | wc; cd ..; x
+\end{verbatim}
+
+Which would be equivalent to:
+
+\begin{verbatim}
+  ls -la | wc; cd ..; ls -la
+\end{verbatim}
+
+Not only should it be possible to have variables in scope for the coming
+command, but also for the whole session:
+
+\begin{verbatim}
+  let $x = hello; echo $x
+\end{verbatim}
+
+List comprehensions over lists of output values from another command:
+
+\begin{verbatim}
+  [ echo $x | $x <- ls ]
+\end{verbatim}
+
+Which would correspond to (in zsh):
+
+\begin{verbatim}
+  for $f in $(ls); do echo $f; done
+\end{verbatim}
+
+Functions (this is by far the hardest part, and may not be feasible for such a small project):
+
+\begin{verbatim}
+  let f n = n + 1 in echo (f 0)
+\end{verbatim}
+
+Which would be interpreted / evaluated as:
+
+\begin{verbatim}
+  echo 1
+\end{verbatim}
+
+In order to write such a shell application, we would need to write a parser for
+the user input. Luckily, the package 'bnfc' makes it easy to generate a parser
+automatically from a specified grammar, and by having a very restricted set of
+features it should not be too hard to write those rules.
+
+With a finished parser, the challenge will be to put it all together, i.e.,
+handling user input via haskeline, parsing (and interpreting) the scripting
+language via the bnfc generated parser, and handling system binary execution via
+the process library. Our haskell shell will also need to handle the state of the
+shell, that is, the current path and variables. One possible extension would be
+to implement even more advanced shell functionality such as job control (way out
+of scope for this project, but it would be cool to have).
+
+
+We believe this project would cover the course goals in the following ways:
+
+\textbf{DSLs}: Both bnfc and haskeline are DSLs, so working with them will require
+understanding how they work. Our own scripting language will be a DSL in itself,
+and by implementing it, we will need to handle both the concrete and abstract
+syntax of our language, as well as the semantics when evaluating it.
+
+\textbf{Types}: Writing the code for this project will inevitably include writing our own
+types, and since our shell will no doubt have to be at least in the IO monad
+(and the State monad), we will use monad transformers to construct it. Also, the
+abstract syntax will be an algebraic datatype.  The haskeline library uses quite
+a big stack of monad transformers (mostly ReaderT). If functions are to be
+implemented in our shell language, we might need to use a GADT to model the
+expressions.
+
+\textbf{Spec / Testing}: Ideally, we would also like to create  a proper testsuite
+(preferably using quickCheck) for our program, but as time will be very limited,
+this will only be done if there is time left. Since the program will be mostly
+monadic, proving properties might be hard.
+
+We realise that this might be an ambitious undertaking, and we have consulted
+one of the TAs about the project. The recommendation was to focus on the
+haskeline library, and instead question it’s implementation choices, and try to
+make suggestions on how to improve upon them. However, we feel that writing a
+simple shell could be a really interesting project, and we would like to give it
+a try, but, should we realise early that this is not feasible within the limited
+time-frame of this course, we will instead go with the TAs recommendation and
+focus on the haskeline library itself.
+
+
 
 \end{document}

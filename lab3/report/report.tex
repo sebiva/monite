@@ -6,6 +6,7 @@
 \usepackage[english]{babel}
 \usepackage{fancyhdr}
 \usepackage{hyperref}
+\usepackage{url}
 %%\usepackage{showframe}
 %\usepackage[parfill]{parskip} %% New line instead of indentation for paragraphs
 
@@ -164,6 +165,54 @@ application to his/her liking. For example:
 \end{verbatim}
 
 \subsubsection{Interesting techniques}
+Haskeline uses the Haskell Foreign Function Interface when interfacing with C in
+order to be able to perform very low level operations in the system. For example
+the System.Console.Haskeline.Directory module make use of FFI in order to define
+some basic system file functionality which was not available in older versions.
+\textbf{Explain why}
+
+Anothier interesting technique used is the monad stack in InputT, where
+haskeline make use of Readers with IORefs (which is basically a State) in order
+to prevent state loss when encountering exceptions such as Ctrl-c.
+
+\begin{verbatim}
+-- | A monad transformer which carries all of the state and settings
+-- relevant to a line-reading application.
+newtype InputT m a = InputT {unInputT ::
+            ReaderT RunTerm
+            -- Use ReaderT (IO _) vs StateT so that exceptions (e.g., ctrl-c)
+            -- don't cause us to lose the existing state.
+            (ReaderT (IORef History)
+            (ReaderT (IORef KillRing)
+            (ReaderT Prefs
+            (ReaderT (Settings m) m)))) a}
+        deriving (Monad, MonadIO, MonadException)
+\end{verbatim}
+
+by having a stack of readers, some of which use IORefs (to simulate a state) the
+monad might be more convenient to work with as they have made it is possible to
+use the ask function everywhere in monads of Reader instance.
+
+The magic comes from defining clever instances for the monad transformers in
+haskeline Monads.hs ask can be used to get any immutable variable in the reader
+stack.
+
+An alternative stack as we see it could be
+
+\begin{verbatim}
+newtype InputT m a = InputT {unInputT ::
+                                ExceptT Err
+                                (StateT Env
+                                (ReaderT RunTerm
+                                (ReaderT Prefs
+                                (ReaderT (Settings m) m)))) a }
+\end{verbatim}
+
+Where it would also be possible to preserve the state after an exception is
+thrown \footnote{\url{http://stackoverflow.com/questions/17645655/exception-handling-with-statet-vs-readert-ioref}}
+
+\textbf{Explain why}
+
 - Interface with C
 - Reader stack? / Own StateT
 - Implementation of error robust state

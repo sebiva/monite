@@ -122,6 +122,8 @@ of haskeline, and in order to get a fairly functional shell working, quite some
 work was required. We thought it would be more interesting to see an actual
 working application and put in this work in order to get it working properly.
 
+See section \ref{monite} for more information about how the shell works.
+
 \subsection{Task 2 - Documentation}
 Haskeline is a user interface used to handle line input for command-line
 programs. It is primarily used to enable a rich editing interface when entering
@@ -219,7 +221,13 @@ thrown \footnote{\url{http://stackoverflow.com/questions/17645655/exception-hand
 
 
 \subsection{Monite shell}
-Monite shell is a shell written in Haskell. Monite shell is build using a couple
+\label{monite}
+
+Monite shell is a shell written in Haskell. The name monite comes from ..%TODO!
+
+\subsubsection{Used libraries}
+
+Monite shell is built using a couple
 of libraries; the major three being: haskeline, BNFC, and process.
 
 Haskeline is used used to provice a rich command-line interface for the
@@ -344,6 +352,14 @@ This will print first the text ``ls -l | wc'' and then the result of running
 that command. (The formatting is not yet fully correct, but could be fixed with
 some more time)
 
+\subsubsection{Development}
+
+The writing of this shell took longer than expected (which could be expected...)
+. The shell comprises of three parts: The Grammar, the input handling, and the
+interpreter/evaluator. The grammar is specified in the file Grammar.cf, which
+with the help of bnfc generates a parser, Par.hs (along with a lexer, and an
+abstract syntax
+
 \textbf{Techniques and Reflection}
 
 In writing our monite shell, we have used several of the development techniques
@@ -393,6 +409,18 @@ allow the end-user can set his/her own \$PATH.
 Job control is another missing feature that monite could be extended with
 (probably a necessity for it to be considered a usable shell).
 
+\textbf{Known Issues}
+
+After testing the shell throughout the development using ghci, we managed to
+get the Ctrl-C - handling working as intended, where pressing Ctrl-C during
+execution of an expression would result in a message being printed and the
+whole expression aborted. Upon testing the compiled version prior to submission
+though, we discovered that it does not behave this way when compiled. Instead,
+only the current command is aborted, for example sleep 5 ; ls will print ls
+even if Ctrl-C is pressed during the execution of sleep. As this issue was not
+discovered until just before the hand in, there was no time to look into a fix.
+
+\newpage
 \appendix
 
 \section{Part I - (Same as last submission)}

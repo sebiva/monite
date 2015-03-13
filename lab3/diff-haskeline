@@ -1,0 +1,99 @@
+diff --git a/lab3/haskeline-0.7.1.4/System/Console/Haskeline/Command/Completion.hs b/lab3/haskeline-0.7.1.4/System/Console/Haskeline/Command/Completion.hs
+index 2f42b2b..c9ee2b3 100644
+--- a/lab3/haskeline-0.7.1.4/System/Console/Haskeline/Command/Completion.hs
++++ b/lab3/haskeline-0.7.1.4/System/Console/Haskeline/Command/Completion.hs
+@@ -16,12 +16,20 @@ import System.Console.Haskeline.Monads
+
+ import Data.List(transpose, unfoldr)
+
++-- | Uses the given completion, and adds the completion to the current
++-- InsertMode. If the completion is finished, a " " is appended, otherwise the
++-- string is added to the left of the cursor, and it will be possible to keep
++-- completing.
+ useCompletion :: InsertMode -> Completion -> InsertMode
+ useCompletion im c = insertString r im
+     where r | isFinished c = replacement c ++ " "
+             | otherwise = replacement c
+
+-askIMCompletions :: CommandMonad m =>
++-- | Ask for the possible completions, will perform runCompletion for the 'm'
++-- monad on the current InsertMode, and return a modified InsertMode along with
++-- a list of completion suggestions, where runCompletion simply runs the
++-- Completion Func.
++askIMCompletions :: CommandMonad m =>
+             Command m InsertMode (InsertMode, [Completion])
+ askIMCompletions (IMode xs ys) = do
+     (rest, completions) <- lift $ runCompletion (withRev graphemesToString xs,
+@@ -41,6 +49,8 @@ completionCmd k = k +> saveForUndo >|> \oldIM -> do
+         [c] -> setState $ useCompletion rest c
+         _ -> presentCompletions k oldIM rest cs
+
++-- | Present the completions in either a menu format, or a list format,
++-- depending on the user preferences.
+ presentCompletions :: (MonadReader Prefs m, MonadReader Layout m)
+         => Key -> InsertMode -> InsertMode
+             -> [Completion] -> CmdM m InsertMode
+@@ -54,12 +64,16 @@ presentCompletions k oldIM rest cs = do
+                 then return withPartial
+                 else pagingCompletion k prefs cs withPartial
+
++-- | Given a key and a list of InsertModes create a Command that loops through
++-- the InsertModes one by one at each key press.
+ menuCompletion :: Monad m => Key -> [InsertMode] -> Command m InsertMode InsertMode
+ menuCompletion k = loop
+     where
+         loop [] = setState
+         loop (c:cs) = change (const c) >|> try (k +> loop cs)
+
++-- | Given an InsertMode and a list of completions, creates an InsertMode with
++-- a common prefix of the completions added prepended.
+ makePartialCompletion :: InsertMode -> [Completion] -> InsertMode
+ makePartialCompletion im completions = insertString partial im
+   where
+@@ -67,12 +81,14 @@ makePartialCompletion im completions = insertString partial im
+     commonPrefix (c:cs) (d:ds) | c == d = c : commonPrefix cs ds
+     commonPrefix _ _ = ""
+
++-- | Given a key, prefs, and completions it constructs a page completion command
++-- with the end-user defined preferences.
+ pagingCompletion :: MonadReader Layout m => Key -> Prefs
+                 -> [Completion] -> Command m InsertMode InsertMode
+ pagingCompletion k prefs completions = \im -> do
+         ls <- asks $ makeLines (map display completions)
+         let pageAction = do
+-                askFirst prefs (length completions) $
++                askFirst prefs (length completions) $
+                             if completionPaging prefs
+                                 then printPage ls
+                                 else effect (PrintLines ls)
+@@ -81,6 +97,11 @@ pagingCompletion k prefs completions = \im -> do
+             then pageAction
+             else effect RingBell >> try (k +> const pageAction) im
+
++-- | Given prefs, limit, and cmd construct a command containing a question of whether or not to display all
++-- suggestions if the completion limit is reached, otherwise return the given
++-- cmd.
++-- where the command containing the question returns () if the key 'n' is
++-- pressed, and returns cmd if 'y' is pressed.
+ askFirst :: Monad m => Prefs -> Int -> CmdM m ()
+             -> CmdM m ()
+ askFirst prefs n cmd
+@@ -93,6 +114,8 @@ askFirst prefs n cmd
+             ]
+     | otherwise = cmd
+
++-- | Construct a page completion command which lists the suggestions in
++-- 'chunks', and waitning for end-user interaciton.
+ pageCompletions :: MonadReader Layout m => [String] -> CmdM m ()
+ pageCompletions [] = return ()
+ pageCompletions wws@(w:ws) = do
+@@ -107,6 +130,9 @@ pageCompletions wws@(w:ws) = do
+     oneLine = clearMessage >> effect (PrintLines [w]) >> pageCompletions ws
+     clearMessage = effect $ LineChange $ const ([],[])
+
++-- | Construct a command from a list of strings which prints a page of
++-- completion suggestions, the layout of the page is defined in the layout
++-- record.
+ printPage :: MonadReader Layout m => [String] -> CmdM m ()
+ printPage ls = do
+     layout <- ask

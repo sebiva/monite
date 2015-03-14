@@ -25,7 +25,7 @@ main = do
     [file] -> do
       s <- readFile file                     -- read the script file
       path <- getCurrentDirectory
-      run (interpret s) (emptyEnv path) -- interpret the script file
+      runM (interpret s) (emptyEnv path) -- interpret the script file
       return ()
     -- Shell mode
     _      -> do
@@ -59,7 +59,7 @@ loop env = do
     -- exit the loop
     exitLoop    = return ()
     -- interpret entered command, and loop
-    runLoop inp = do env <- withInterrupt $ liftIO $ run (interpret inp) env
+    runLoop inp = do env <- withInterrupt $ liftIO $ runM (interpret inp) env
                      loop env
 
 -- | Create a prompt path from the current working dir, shortening $HOME to
@@ -74,8 +74,8 @@ prompt p home
                         in joinPath (dirs ++ [last (splitPath p)])
 
 -- | Run the MoniteM monad, with a given environment
-run :: MoniteM a -> Env -> IO a
-run m env = do
+runM :: MoniteM a -> Env -> IO a
+runM m env = do
   res <- evalStateT (runExceptT (runMonite m)) env
   case res of
     Left err -> fail $ "error"

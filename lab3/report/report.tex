@@ -94,6 +94,10 @@
 
 
 \section{Assignment 3, Part II}
+In this part of the assignment we have worked with the library haskeline, chosen
+in Part I, which we have used in an implementation of a shell. We have also
+studied the library, and tried to come up with possible improvements on its
+implementation.
 
 \subsection{Task 1 - Writing code}
 
@@ -135,21 +139,22 @@ See section \ref{monite} for more information about how the shell works.
 Haskeline is a user interface used to handle line input for command-line
 programs. It is primarily used to enable a rich editing interface when entering
 input on the command line, for example, functionality such as Emacs- and
-Vim-Mode is present by default.
+Vim-Mode is present by default, which allows the end-user to edit commands on
+the command-line with their favorite key-bindings.
 
-It is also highly customizable, as the application programmer can define their
-own 'completion functions', which are basically the function that is used
+It also suits our needs very well, as the application programmer can define
+their own 'completion functions', which are basically functions used to
 intelligently suggest completions for a command that is being entered on the
 command-line.
 
 \subsubsection{Description of library interface}
 Haskeline provides an easy to use interface. The documentation for this
-interface is good, and we will therefore give a brief summary of how to use it,
+interface is good, and we will therefore give a brief summary on how to use it,
 and what functionality is available to the application programmer.
 
 \subsubsection{Settings}
 The application programmer has a couple of settings available. It is possible to
-set how history should be handeled, i.e., which history file to use, and if
+configure how history should be handled, i.e., which history file to use, and if
 history should be automatically added to the history file. History in this
 context is all non-empty lines that has been entered into the command-line of
 the application. This enables the end-user of the application to search through
@@ -164,7 +169,7 @@ upon this with a compositional interface for completion functions.
 \subsection{Preferences}
 Haskeline also provides the application programmer with the ability to read
 end-user preferences from a file, which by default is read from the file
-$\mathtt{\sim}$\textit{/.haskeline}. This allows the end user to configure the
+$\mathtt{\sim}$\textit{/.haskeline}. This allows the end-user to configure the
 application to his/her liking. For example:
 
 \begin{verbatim}
@@ -173,14 +178,16 @@ application to his/her liking. For example:
   maxhistorysize: Just 40
 \end{verbatim}
 
+which changes how the interface behaves for the end-user.
+
 \subsubsection{Interesting techniques}
 Haskeline uses the Haskell Foreign Function Interface when interfacing with C in
-order to be able to perform very low level operations in the system. For example
+order to be able to perform very low level operations on the system. For example
 the System.Console.Haskeline.Directory module make use of FFI in order to define
-some basic system file functionality which was not available in older versions.
-\textbf{Explain why}
+some basic system file handling functionality which was not available in older
+versions.
 
-Anothier interesting technique used is the monad stack in InputT, where
+Another interesting technique used is the monad stack in InputT, where
 haskeline make use of Readers with IORefs (which is basically a State) in order
 to prevent state loss when encountering exceptions such as Ctrl-c.
 
@@ -230,7 +237,11 @@ thrown \footnote{\url{http://stackoverflow.com/questions/17645655/exception-hand
 \subsection{Monite shell}
 \label{monite}
 
-Monite shell is a shell written in Haskell. The name monite comes from ..%TODO!
+Monite is a shell written in Haskell. During the Feldspar guest lecture we
+learned that many hackage packages are named after various types of rock
+formations. Following this convention the name Monite (an abbreviation) was
+derived from the group name of extinct marine animals Ammonites, e.g., fossils
+of various types of shells, which is what we are developing, a shell.
 
 \subsubsection{Used libraries}
 
@@ -239,13 +250,12 @@ of libraries; the major three being: haskeline, BNFC, and process.
 
 Haskeline is used used to provice a rich command-line interface for the
 end-user. Monite is customizable to the end-users preferences in the
-configuration file $\mathtt{\sim}$\textit{/.moniterc} (see haddock documentation
-for available preferences). It also provides monite with a history file, and
-useful completion functions. The end-user can tab-complete commands entered at
-the command-line, and using our customized completion function we look in the
-users \$PATH, in order to suggest completions for the first word entered at the
-command-line, and we then use the standard file completion from haskeline for
-tab-completion of the arguments.
+configuration file $\mathtt{\sim}$\textit{/.moniterc}. It also provides monite
+with a history file, and useful completion functions. The end-user can
+tab-complete commands entered at the command-line, and using our customized
+completion function we look in the users \$PATH, in order to suggest completions
+for the first word entered at the command-line, and then we use the standard
+file completion from haskeline for tab-completion of the arguments.
 
 BNFC is a parsing library, and is used in monite to parse a small scripting
 language, which is available to the end-user to enter at the command line. We
@@ -416,6 +426,18 @@ allow the end-user can set his/her own \$PATH.
 
 Job control is another missing feature that monite could be extended with
 (probably a necessity for it to be considered a usable shell).
+
+There is also room for improvements on the completion functions used by Monite.
+It would be possible to write completion functions for arguments to binary
+commands which looks through the documentation of the command, and prints
+suggestions for what arguments could be given to the command. For exmaple:
+
+\begin{verbatim}
+  $> git <Tab>
+\end{verbatim}
+
+could go through the git ducumentation and suggest all possible arguments that
+could be entered.
 
 \textbf{Known Issues}
 

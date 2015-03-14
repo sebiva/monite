@@ -138,7 +138,7 @@ See section \ref{monite} for more information about how the shell works.
 \subsection{Task 2 - Documentation}
 Haskeline is a user interface used to handle line input for command-line
 programs. It is primarily used to enable a rich editing interface when entering
-input on the command line, for example, functionality such as Emcas- and
+input on the command line, for example, functionality such as Emacs- and
 Vim-Mode is present by default, which allows the end-user to edit commands on
 the command-line with their favorite key-bindings.
 
@@ -163,7 +163,7 @@ previously entered commands, or simply browse through them.
 Another quite useful setting is the ability to set custom 'completion
 functions', which allows the application programmer to decide in what manner the
 tab completions should be handled. The interface for using these were in our
-case a little cumbersome, and we have made som suggestions on how to improve
+case a little cumbersome, and we have made some suggestions on how to improve
 upon this with a compositional interface for completion functions.
 
 \subsection{Preferences}
@@ -205,8 +205,8 @@ newtype InputT m a = InputT {unInputT ::
         deriving (Monad, MonadIO, MonadException)
 \end{verbatim}
 
-by having a stack of readers, some of which use IORefs (to simulate a state) the
-monad might be more convenient to work with as they have made it is possible to
+by having a stack of readers, some of which use IORefs (to simulate a state), the
+monad might be more convenient to work with as they have made it possible to
 use the ask function everywhere in monads of Reader instance.
 
 The magic comes from defining clever instances for the monad transformers in
@@ -270,6 +270,7 @@ piping of commands, and redirection of stdout. We support redirection, e.g.,
 "ls > filef", and "cat < filef" and piping, e.g., "ls | wc | wc | wc".
 
 \subsubsection{Features}
+\label{features}
 Tab-completion, history file, configuration, redirection, piping, (small)
 scripting language, script execution, interrupt handling (Ctrl-c).
 
@@ -453,6 +454,7 @@ only the current command is aborted, for example sleep 5 ; ls will print ls
 even if Ctrl-C is pressed during the execution of sleep. As this issue was not
 discovered until just before the hand in, there was no time to look into a fix.
 
+Using wraps does not currently conserve the formatting of the run command (see the last example of let expressions in section \ref{features} for an example of this behaviour). Fixing this would
 
 \subsection{Outcome}
 

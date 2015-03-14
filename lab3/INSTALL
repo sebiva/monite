@@ -6,7 +6,7 @@ INSTALL:
 --------
 
 cabal sandbox init
-cabal install transformers-0.4.3.0
+cabal install transformers-0.4.2.0
 cabal install haskeline-0.7.1.4.tar.gz
 cabal install --only-dependencies
 

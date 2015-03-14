@@ -17,12 +17,10 @@ WCmd.    Wrap ::= Cmd ;
 separator nonempty Wrap "" ;
 
 
-{-CQoute.   Cmd4 ::= String ;-}
 CText.     Cmd4 ::= [Text] ;
 CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;
 COut.     Cmd2 ::= Cmd2 ">" Lit ;
 CIn.      Cmd1 ::= Cmd1 "<" Lit ;
-{-CPar.     Cmd  ::= "(" Cmd4 ")" ;-}
 coercions Cmd 4 ;
 separator nonempty Cmd "," ;
 
@@ -31,35 +29,5 @@ TStr.   Text ::= String ;
 TLit.   Text ::= Lit ;
 separator nonempty Text "" ;
 
-
-
-
-
-
-{-ECompL.  Exp5 ::= "{" Exp ":" Lit "<-" "[" [ListEl] "]" "}" ;-}
-{-EComp.   Exp5 ::= "{" Exp ":" Lit "<-" Exp "}" ;-}
-{-ELet.    Exp4 ::= "let" Lit "=" Exp ;-}
-{-ELetIn.  Exp3 ::= "let" Lit "=" Exp "in" Exp ;-}
-{-EList.   Exp2 ::= "[" [ListEl] "]" ;-}
-{-EStr.    Exp1 ::= String ;-}
-{-ECmd.    Exp1 ::= Cmd ;-}
-{-separator Exp ";" ;-}
-{-coercions Exp 5 ;-}
-
-{-LExp. ListEl  ::= Lit ;-}
-{-separator ListEl "," ;-}
-
-{-CText.    Cmd4 ::= [Lit] ;-}
-{-CPipe.    Cmd3 ::= Cmd3 "|" Cmd4 ;-}
-{-COut.     Cmd2 ::= Cmd2 ">" Lit ;-}
-{-CIn.      Cmd1 ::= Cmd1 "<" Lit ;-}
-{-coercions Cmd 4 ;-}
-
-
-{-TLit.    Text ::= Lit ;-}
-{-separator nonempty Text "" ;-}
-
-{-token Var ('$' (letter | digit | '_') (letter | digit | '_')*) ;-}
-{-token Id ((letter | digit | '_') (letter | digit | '_')*) ;-}
-token Lit (char - ["\"\',()[]<>|{};:\t\n "] (char - ["\"\',()[]<>|{};:\t\n "])* ) ; --) - ']') - '=') - '|')*) ;
+token Lit (char - ["\"\',()[]<>|{};:\t\n "] (char - ["\"\',()[]<>|{};:\t\n "])* ) ;
 separator nonempty Lit "" ;

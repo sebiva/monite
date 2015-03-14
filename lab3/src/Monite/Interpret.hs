@@ -36,8 +36,8 @@ import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
 -- | MoniteM monad which handles state, exceptions, and IO
-newtype MoniteM a = Monite { runMonite :: StateT Env
-                                            (ExceptT MoniteErr IO) a }
+newtype MoniteM a = Monite { runMonite :: ExceptT MoniteErr
+                                           (StateT Env IO) a }
   deriving (  Functor, Applicative, Monad, MonadIO
             , MonadState Env, MonadError MoniteErr)
 
@@ -60,15 +60,10 @@ data MoniteErr = Err {
   errMsg  :: String
 }
 
--- | The main loop which interprets the shell commands executed by the user.
--- Returns the resulting environment.
+-- | Interpret a string, i.e., parsing it using the bnfc grammar and then
+-- evaluate it as a program (the abstract syntax tree).
 interpret :: String -> MoniteM Env
-interpret s = interpret' s
-
--- | Interpret a string using the provided pipes, parsing it using the bnfc
--- grammar and then evaluating it.
-interpret' :: String -> MoniteM Env
-interpret' s = do
+interpret s = do
   case pProgram $ myLexer s of
     Ok tree -> do
       eval tree
@@ -125,7 +120,7 @@ evalExp e = case e of
         ss <- evalWrapToStr False w          -- The binary shouldn't have quotes
         sss <- mapM (evalWrapToStr True) ws' -- The arguments should have quotes
         -- Interpret the resulting string as a command
-        interpret' (unwords (ss ++ concat sss)) >> return () -- TODO: Unwords? Unlines?
+        interpret (unwords (ss ++ concat sss)) >> return () -- TODO: Unwords? Unlines?
 
 -- | Evaluate a let expression into a list of strings, by running the
 -- expression and splitting the lines in the output into a list.

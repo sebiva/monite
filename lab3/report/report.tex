@@ -87,6 +87,12 @@
 \maketitle
 \thispagestyle{fancy}
 
+%\begin{center}
+
+%\input{logo.tex}
+%\end{center}
+
+
 \section{Assignment 3, Part II}
 In this part of the assignment we have worked with the library haskeline, chosen
 in Part I, which we have used in an implementation of a shell. We have also
@@ -94,12 +100,13 @@ studied the library, and tried to come up with possible improvements on its
 implementation.
 
 \subsection{Task 1 - Writing code}
-\textbf{Modification / extension}: Show how the library could be changed to improve it in
+
+\textbf{Modification / extension}: \textit{Show how the library could be changed to improve it in
 some aspect, or extend the library with some useful feature. Implementing the
 suggested feature is of course the best thing, but since this is a short project
 we understand if the result is limited to a partial solution or even a sketch of
 the implementation along with a description (in your report) of what
-difficulties you faced when trying to implement it.
+difficulties you faced when trying to implement it.}
 
 We have focused on the tab-completion (see Completion.hs) part of haskeline in
 this project, as it is what we sought out to use in our shell implementation. We
@@ -114,11 +121,11 @@ completion functions, and in such a way allow easy composition of said
 functions. For a suggestion of such an interface (sadly undefined) see the end
 of the file System/Console/Haskeline/Completion.hs.
 
-\textbf{Advanced usage / tutorial}: Show some examples of what the library can be used
+\textbf{Advanced usage / tutorial}: \textit{Show some examples of what the library can be used
 for. The examples must demonstrate a deep understanding of the library (or part
 of it). Note: This task is potentially much simpler than the other two. Making a
 good tutorial is enough for a passing grade on this assignment, but is unlikely
-to yield a higher grade.
+to yield a higher grade.}
 
 The example of how the library can be used is the implementaiton of our shell
 monite. We chose to try and create an interesting application to show the usage
@@ -379,7 +386,7 @@ In order to get our MoniteM monad we used the concept of Monad transformers
 which has been a big part of the course. Using transformers we get a lot of
 things for free, for example getting and modifying the state, performing io
 actions using liftIO and throwing and catching errors. One thing that was
-tricky despite our transformer stack was too use it along with the InputT
+tricky despite our transformer stack was to use it along with the InputT
 transformer from haskeline. In order to catch the Ctrl-C interrupt, we had to
 have a monad in the MonadException typeclass defined within haskeline. Even
 though there were instances for some transformers, there was none for the
@@ -441,6 +448,45 @@ though, we discovered that it does not behave this way when compiled. Instead,
 only the current command is aborted, for example sleep 5 ; ls will print ls
 even if Ctrl-C is pressed during the execution of sleep. As this issue was not
 discovered until just before the hand in, there was no time to look into a fix.
+
+
+\subsection{Outcome}
+
+Overall, we are pleased with the result of this project. We have managed to
+create a (perhaps a bit limited) functioning shell, that can perform most basic
+tasks, and have learned a lot in the process. We have also had the opportunity
+to look at and change a part of the haskeline code base. We have stuck quite
+closely to our original plan, even though the grammar and some concrete syntax
+had to be changed (for example using ``$\{\}$'' and ``$|$'' in list comprehensions
+to avoid confusion between ordinary lists and pipes for bnfc).
+
+We realized quickly that having functions in our language would be way beyond
+the scope of this project, but also that getting the few features we wanted
+proved to be harder than we had initially thought.
+
+% TODO: Move to own Testing-section
+As was predicted, there was not much time left for testing. We had a small
+testsuite running throughout, but had some problems with making it fully
+automatic, as the redirection of its output seemed to give the strings in
+different order. Also, making the tests fully general is hard, as the results
+of the commands run depepends on the system environment. One idea however, is
+to have the testsuite run another shell (for instance bash) and perhaps
+generate random commands that are run by both shells, and then compare the
+output. The challange would be to generate commands that behave nicely and dont
+reformat your hard drive.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 \newpage
 \appendix

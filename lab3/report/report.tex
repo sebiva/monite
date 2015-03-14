@@ -219,7 +219,7 @@ The magic comes from defining clever instances for the monad transformers in
 haskeline Monads.hs, which allows ask to get any immutable variable in the
 reader stack.
 
-An alternative stack as we see it could be
+An alternative stack as we see it would be
 
 \begin{verbatim}
 newtype InputT m a = InputT {unInputT ::
@@ -235,25 +235,50 @@ data Env :: Env {
 }
 \end{verbatim}
 
-where it would also be possible to preserve the state when encountering an
-exception
-\footnote{\url{http://stackoverflow.com/questions/17645655/exception-handling-with-statet-vs-readert-ioref}}.
-One can read from the type signatures of the below example how an ExceptT
-outside of a StateT allows for preservation of state when encountering an
-exception.
+Where it would also be possible to preserve the state when encountering an
+exception. However, according to this
+\footnote{\url{http://stackoverflow.com/questions/17645655/exception-handling-with-statet-vs-readert-ioref}}
+post, there is still an issue with using this technique. Even though the base
+rule of always keeping the exceptions ``on top'' of the state in order to
+preserve the state when something goes wrong, it does not apply to the mtl
+transformer stack, as the state that is returned is not the latest in the
+computation. The reason for this, as explained in the post, is that IO in
+itself contains a sort of Error handling, and by putting IO inside StateT, we
+are effectively putting a StateT on top of an Error Monad, which will not work.
+By using IORefs, the state is placed inside the IO monad, which means the state
+can be preserved properly.
+
+In our own transformer stack, we do not use this technique however, as we are
+not that interested in keeping the state of an expression that has gone wrong,
+and therefore use the basic StateT inside of an ExceptT.
+
+The below example illustrates how the type signatures of an ExceptT
+outside/inside of a StateT allows for preservation of state when encountering
+an exception.
 
 \begin{verbatim}
-  M :: ExceptT e (StateT s m) r
-
-  runExceptT M :: StateT s m (Either e r)
-  runStateT (runExceptT M) :: s -> m (Either e r, s)
-
-  runM :: M -> s -> m (Either e r, s)
-  runM m = runStateT (runExceptT m)
-
   runExceptT :: ExceptT e m a -> m (Either e a)
   runStateT  :: StateT s m a -> s -> m (a, s)
 
+  type X = ExceptT e (StateT s m) r
+  x :: X
+
+  (runExceptT x) :: StateT s m (Either e r)
+  (runStateT (runExceptT x)) :: s -> m (Either e r, s)
+
+  -- Here we both the error and the state
+  runM :: X -> s -> m (Either e r, s)
+  runM x = runStateT (runExceptT x)
+
+  type Y = StateT s (ExceptT e m r)
+  y :: Y
+
+  -- runStateT y :: s -> ExceptT e m (r, s)
+  -- runExceptT (runStateT y s) :: m (Either e (a, s))
+
+  -- Here, we can't have both an error and a state
+  runM' :: Y -> s -> m (Either e (a, s))
+  runM' y s = runExceptT (runStateT y s)
 \end{verbatim}
 
 \subsection{Monite shell}

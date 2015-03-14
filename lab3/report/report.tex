@@ -99,6 +99,7 @@ in Part I, which we have used in an implementation of a shell. We have also
 studied the library, and tried to come up with possible improvements on its
 implementation.
 
+
 \subsection{Task 1 - Writing code}
 
 \textbf{Modification / extension}: \textit{Show how the library could be changed to improve it in
@@ -454,7 +455,12 @@ only the current command is aborted, for example sleep 5 ; ls will print ls
 even if Ctrl-C is pressed during the execution of sleep. As this issue was not
 discovered until just before the hand in, there was no time to look into a fix.
 
-Using wraps does not currently conserve the formatting of the run command (see the last example of let expressions in section \ref{features} for an example of this behaviour). Fixing this would
+Using wraps does not currently conserve the formatting of the run command (see
+the last example of let expressions in section \ref{features} for an example of
+this behaviour). It seems this is because of how we treat the commands, and as
+the words function treats tabs as spaces, fixing this would require us to store
+the commands differently, and since this is a cosmetic issue, we have not spent
+time trying to fix it as of now.
 
 \subsection{Outcome}
 
@@ -481,11 +487,37 @@ generate random commands that are run by both shells, and then compare the
 output. The challange would be to generate commands that behave nicely and dont
 reformat your hard drive.
 
+\subsection{Alternative Haskell Shells}
 
+Before starting the project, we found some existing shells written in haskell, but we thought none of them really did what we were after, and we thus set out to write our own from scratch in the hope to learn more. The shells we looked at were: Shelly, Hell, Turtle .
 
+\textbf{Turtle}
 
+Turtle is a scripting language that also works as a shell. The shell runs
+within ghci though, and has predefined functions for ls, rm and so on instead
+of using the system binaries. It is more focused on writing scripts, and was
+not quite what we were looking for.
 
+\textbf{Hell}
 
+Hell is more focused on being a real shell, using shell-conduit to execute
+system binaries and ghc to evaluate haskell expressions that are written at the
+prompt. Like our shell, it uses haskeline for its tab completion and history.
+This shell however, unlike regular shells like bash, is typed, and requires
+writing qoutes for string literals, for example ls ``-l''.
+
+\textbf{Shelly}
+
+Is also a scripting language more than an interactive shell, and thus not
+suitible for our needs.
+
+None of these packages were quite what we were looking for. We wanted
+our own shell to be more bash-like, with some extra features such as list
+comprehensions. We also wanted it to handle the low-level things by itself,
+using the exec - like createProcess function from System.Process rather than
+the more general runCommand, which handles piping and such by itself. This
+choice means it should be possible to replace the calls to createProcess and
+createPipe with calls to standard-programs exec and pipe using FFI.
 
 
 

@@ -16,7 +16,7 @@ category:            Languages
 build-type:          Simple
 cabal-version:       >=1.10
 data-files:          test/scripts/good/*.sh, test/scripts/good/*.sh.output,
-                     runtest-scripts.sh, INSTALL
+                     runtest-scripts.sh, INSTALL, diff-haskeline, src/Grammar.cf
 
 --------------------------------------------------------------------------------
 

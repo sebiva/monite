@@ -282,8 +282,8 @@ an exception.
 Monite is a shell written in Haskell. During the Feldspar guest lecture we
 learned that many hackage packages are named after various types of rock
 formations. Following this convention the name Monite (an abbreviation) was
-derived from the group name of extinct marine animals Ammonites, e.g., fossils
-of various types of shells, which is what we are developing, a shell.
+derived from the group name Ammonites used for extinct marine animals, e.g.,
+fossils of various types of shells, which is what we are developing, a shell.
 
 \subsubsection{Used libraries}
 
@@ -306,10 +306,35 @@ parser from these grammars, which are used to parse the commands entered on the
 command-line in monite. The abstract syntax tree is then evaluated using our own
 own evaluation functions.
 
-The process library is used to allow for easy execution, and handling of binary
+The process library is used to allow for execution, and handling of binary
 processes such as ls, cat, echo, etc, as well as to create pipes to allow
 piping of commands, and redirection of stdout. We support redirection, e.g.,
 "ls > filef", and "cat < filef" and piping, e.g., "ls | wc | wc | wc".
+
+\textbf{Analysis of our code}
+In the main loop of our program we prompt the end-user for commands using the
+haskeline interface, and we then send these commands to our interpreter.
+
+In the interpreter we first parse the input into a program (abstract syntax
+tree), and then send the program to the evaluator.
+
+The evaluator evaluates the program recursively. The evaluator handles
+exceptions that are thrown while evaluating (in case some command is invalid
+etc), which results in useful error messages for the end-user.
+
+The grammars are specified in the file Grammar.cf, which with the help of bnfc
+generates a parser, Par.hs (along with a lexer and an abstract syntax tree).
+
+We use the createProcess function from the process library to execute binary
+commands, along with their arguments, which are taken as is form the input. In
+order to enable piping, and redirection we keep handles in our state, which are
+sent to createProcess when evaluating CPipe, COut, and CIn commands.
+
+Since everything in the shell is considered a string until proved otherwise, we
+sometimes have to re-interpret a command. This is what we use wrappers for.  For
+example when a variable contains a complex command such as "echo hello > filef",
+we have to interpret the string contained in the variable when it is used within
+(()).
 
 \subsubsection{Features}
 \label{features}
@@ -418,11 +443,9 @@ some more time)
 
 \subsubsection{Development}
 
-The writing of this shell took longer than expected (which could be expected...)
-. The shell comprises of three parts: The Grammar, the input handling, and the
-interpreter/evaluator. The grammar is specified in the file Grammar.cf, which
-with the help of bnfc generates a parser, Par.hs (along with a lexer, and an
-abstract syntax
+We knew going in that the undertaking of writing an entire useful shell during
+this project would not be feasible.
+
 
 \textbf{Techniques and Reflection}
 

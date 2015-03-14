@@ -58,7 +58,7 @@ loop env = do
   where
     -- exit the loop
     exitLoop    = return ()
-    -- interpert entered command, and loop
+    -- interpret entered command, and loop
     runLoop inp = do env <- withInterrupt $ liftIO $ run (interpret inp) env
                      loop env
 
@@ -76,7 +76,7 @@ prompt p home
 -- | Run the MoniteM monad, with a given environment
 run :: MoniteM a -> Env -> IO a
 run m env = do
-  res <- runExceptT $ evalStateT (runMonite m) env
+  res <- evalStateT (runExceptT (runMonite m)) env
   case res of
     Left err -> fail $ "error"
     Right a  -> return a

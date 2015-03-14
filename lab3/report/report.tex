@@ -276,30 +276,30 @@ scripting language, script execution, interrupt handling (Ctrl-c).
 The syntax of our scripting language is as follows:
 
 \begin{verbatim}
-LetExp ::= let Lit = Wrap | let Lit = Wrap in LetExp | Exp
-Exp    ::= { LetExp : Lit <- Exp } | [ Cmd, Cmd ... ] | Wrap Wrap ...
-Wrap   ::= (( Wrap Wrap ... )) | Cmd
-Cmd    ::= Text Text ... | Cmd ``|'' Cmd | Cmd > Lit | Cmd > Lit
-Text   ::= String | Lit
+  LetExp ::= let Lit = Wrap | let Lit = Wrap in LetExp | Exp
+  Exp    ::= { LetExp : Lit <- Exp } | [ Cmd, Cmd ... ] | Wrap Wrap ...
+  Wrap   ::= (( Wrap Wrap ... )) | Cmd
+  Cmd    ::= Text Text ... | Cmd ``|'' Cmd | Cmd > Lit | Cmd > Lit
+  Text   ::= String | Lit
 \end{verbatim}
 
 Where a literal is a sequence of characters not in the set:
 \begin{verbatim}
-"\"\',()[]<>|{};:\t\n "
+  "\"\',()[]<>|{};:\t\n "
 \end{verbatim}
 
 \textbf{Let expressions}
 
-Let expressions extend the current scope with a new variable with a name of
-type Lit. If a variable is called ``x'', it can be referenced by using ``\$x''.
-When using the let x = $\dots$ syntax, the variable is set globally, but when
-the let x = $\dots$ in Exp syntax is used, the variable is only available
-within Exp, and deleted afterwards. Example:
+Let expressions extend the current scope with a new variable of type Lit. If a
+variable is called ``x'', it can be referenced by using ``\$x''.  When using the
+let x = $\dots$ syntax, the variable is set globally, but when the let x =
+$\dots$ in Exp syntax is used, the variable is only available within Exp, and
+deleted afterwards. Example:
 
 \begin{verbatim}
-let x = 42 ;
-let x = hello in echo $x ; # Should print "hello"
-echo $x ; # Should print "42"
+  let x = 42 ;
+  let x = hello in echo $x ; # Should print "hello"
+  echo $x ; # Should print "42"
 \end{verbatim}
 
 Only values can be assigned to variables. This is enforced by using the type
@@ -311,10 +311,10 @@ we don't handle the formatting of the command more than joining the string with
 spaces, this could be improved in a more polished version). Example:
 
 \begin{verbatim}
-let x = ls ;
-$x ; # Will execute ls
-let x = ((ls)) ;
-echo $x ; # Will print the output of ls using echo
+  let x = ls ;
+  $x ; # Will execute ls
+  let x = ((ls)) ;
+  echo $x ; # Will print the output of ls using echo
 \end{verbatim}
 
 \textbf{List comprehensions}
@@ -323,6 +323,10 @@ The list comprehension evaluates the rightmost expression to a list of strings,
 and for each string $s$ in this list, assigns it to the variable $i$ and
 evaluates the leftmost expression with $i$ in its context.
 
+\begin{verbatim}
+  { echo $i : i <- ls } ; # echo each element from the list from ls
+\end{verbatim}
+
 \textbf{Lists}
 
 Lists contain commands, and evaluating a list by itself only prints the
@@ -330,7 +334,7 @@ commands as they are. They can be used within list comprehensions to execute
 the commands, for example:
 
 \begin{verbatim}
-{ $x : i <- [pwd, ls] } ; # Should print the output of first pwd, the ls
+  { $i : i <- [pwd, ls] } ; # Should print the output of first pwd, the ls
 \end{verbatim}
 
 \textbf{Commands and Wraps}
@@ -351,7 +355,7 @@ around the result when it is not the first part of a command, as it should be
 the binary to be executed then.
 
 \begin{verbatim}
-let x = ls -l | wc in echo $x (($x)) ; # Should print both
+  let x = ls -l | wc in echo $x (($x)) ; # Should print both
 \end{verbatim}
 
 
@@ -362,7 +366,7 @@ strings, unless it is wrapped in ``$\left( \left(  \right) \right)$'' (in which
 case it is taken as an expression returning a string).
 
 \begin{verbatim}
-let x = ls -l | wc in echo $x (($x))
+  let x = ls -l | wc in echo $x (($x))
 \end{verbatim}
 
 This will print first the text ``ls -l | wc'' and then the result of running

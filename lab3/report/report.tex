@@ -149,6 +149,11 @@ intelligently suggest completions for a command that is being entered on the
 command-line.
 
 \subsubsection{Description of library interface}
+Since we have focused on the completion part of the haskeline project we have
+thoroughly read through both System/Console/Haskeline/Completino.hs, and
+System/Console/Haskeline/Command/Completion.hs, and we have added comments for
+the uncommented functions in the the latter (see diff-haskeline).
+
 Haskeline provides an easy to use interface. The documentation for this
 interface is good, and we will therefore give a brief summary on how to use it,
 and what functionality is available to the application programmer.
@@ -418,23 +423,23 @@ some more time)
 
 \subsubsection{Development}
 
-We knew going in that the undertaking of writing an entire useful shell during
-this project would not be feasible.
+We knew going in that the undertaking of writing an entire, and useful shell
+during this project would not be feasible.
 
 
 \textbf{Techniques and Reflection}
 
-In writing our monite shell, we have used several of the development techniques
-discussed in the course. Obviously, Monads have played a huge part in the
-writing of our program, as we are in need of both State, IO and Error handling.
-In order to get our MoniteM monad we used the concept of Monad transformers
-which has been a big part of the course. Using transformers we get a lot of
-things for free, for example getting and modifying the state, performing io
-actions using liftIO and throwing and catching errors. One thing that was
-tricky despite our transformer stack was to use it along with the InputT
-transformer from haskeline. In order to catch the Ctrl-C interrupt, we had to
-have a monad in the MonadException typeclass defined within haskeline. Even
-though there were instances for some transformers, there was none for the
+During the development of Monite, we have used several of the development
+techniques discussed in the course. Obviously, monads have played a huge role
+when writing our program, as we are in need of both State, IO and Error
+handling. The MoniteM monad is constructed using concept of monad transformers
+which has been an important part of the course. Using transformers we get a lot
+of functionality for free, for example getting and modifying the state,
+performing io actions using liftIO and throwing and catching errors. One thing
+that was tricky despite our transformer stack was to use it along with the
+InputT transformer from haskeline. In order to catch the Ctrl-C interrupt, we
+had to have a monad in the MonadException typeclass defined within haskeline.
+Even though there were instances for some transformers, there was none for the
 ExceptT that we use, only for the deprecated ErrorT. Luckily, it was enough to
 run IO-actions within the things we wanted to catch, and IO was one of
 predefined instances. Otherwise we would either have had to create our own
@@ -442,17 +447,20 @@ instance of MonadException which proved to be tricky, change our transformer
 stack to the deprecated ErrorT which would have been a step back, or possibly
 update the monad stack in haskeline with ExceptT instead of ErrorT.
 
-Throughout the project, we noticed that it is hard to nail the grammar in the
-first try, and that it may be good to start over. It took some time getting it
-right, and there still may be room for improvements, perhaps using something
-else than bnfc for the grammar. Reworking the grammar takes very long as the
+Throughout the project, we noticed that it is hard to nail the grammars for a
+scripting language in the first try. It took some iterations getting the
+grammars right, and there are still room for improvements, perhaps using
+something else than bnfc. Reworking the grammar took quite some time as the
 entire interpreter must be changed to reflect it, and it can thus be worth
 taking even more time getting it right in the first place.
 
 \textbf{Missing features}
 
-More general configuration file, the configuration supported now is that which
-haskeline provides by default, it would be nice to be able to set a custom
+This is by no means an exhaustive list of missing features, however, it is a
+list of some of the features we would have liked to implement with enough time.
+
+1. More general configuration file, the configuration supported now is that
+which haskeline provides by default, it would be nice to be able to set a custom
 prompt, and define custom functions. This could be done in many ways, and one
 interesting way would be to expose a haskell config file to the end-user, in
 which he/she could define their own functions (with the whole power of haskell
@@ -468,12 +476,12 @@ functions, which we realized was beyond the scope of this project. It would be
 nice to be able to set environment variables in the scripting language, e.g.,
 allow the end-user can set his/her own \$PATH.
 
-Job control is another missing feature that monite could be extended with
+2. Job control is another missing feature that monite could be extended with
 (probably a necessity for it to be considered a usable shell).
 
-There is also room for improvements on the completion functions used by Monite.
-It would be possible to write completion functions for arguments to binary
-commands which looks through the documentation of the command, and prints
+3. There is also room for improvements on the completion functions used by
+Monite.  It would be possible to write completion functions for arguments to
+binary commands which looks through the documentation of the command, and prints
 suggestions for what arguments could be given to the command. For exmaple:
 
 \begin{verbatim}
@@ -508,7 +516,7 @@ create a (perhaps a bit limited) functioning shell, that can perform most basic
 tasks, and have learned a lot in the process. We have also had the opportunity
 to look at and change a part of the haskeline code base. We have stuck quite
 closely to our original plan, even though the grammar and some concrete syntax
-had to be changed (for example using ``$\{\}$'' and ``$|$'' in list comprehensions
+had to be changed (for example using ``$\{\}$'' and ``$:$'' in list comprehensions
 to avoid confusion between ordinary lists and pipes for bnfc).
 
 We realized quickly that having functions in our language would be way beyond

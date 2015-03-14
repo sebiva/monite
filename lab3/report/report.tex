@@ -181,11 +181,11 @@ application to his/her liking. For example:
 which changes how the interface behaves for the end-user.
 
 \subsubsection{Interesting techniques}
-Haskeline uses the Haskell Foreign Function Interface when interfacing with C in
-order to be able to perform very low level operations on the system. For example
-the System.Console.Haskeline.Directory module make use of FFI in order to define
-some basic system file handling functionality which was not available in older
-versions.
+Haskeline uses the Haskell Foreign Function Interface (FFI) when interfacing
+with C in order to be able to perform very low level operations on the system.
+For example the System.Console.Haskeline.Directory module make use of FFI in
+order to define some basic system file handling functionality which was not
+available in older versions.
 
 Another interesting technique used is the monad stack in InputT, where
 haskeline make use of Readers with IORefs (which is basically a State) in order
@@ -210,29 +210,44 @@ monad might be more convenient to work with as they have made it possible to
 use the ask function everywhere in monads of Reader instance.
 
 The magic comes from defining clever instances for the monad transformers in
-haskeline Monads.hs ask can be used to get any immutable variable in the reader
-stack.
+haskeline Monads.hs, which allows ask to get any immutable variable in the
+reader stack.
 
 An alternative stack as we see it could be
 
 \begin{verbatim}
 newtype InputT m a = InputT {unInputT ::
-                                ExceptT Err
-                                (StateT Env
-                                (ReaderT RunTerm
-                                (ReaderT Prefs
-                                (ReaderT (Settings m) m)))) a }
+            ExceptT Err
+            (StateT Env
+            (ReaderT RunTerm
+            (ReaderT Prefs
+            (ReaderT (Settings m) m)))) a }
+
+data Env :: Env {
+  history  :: History
+  killring :: KillRing
+}
 \end{verbatim}
 
-Where it would also be possible to preserve the state after an exception is
-thrown \footnote{\url{http://stackoverflow.com/questions/17645655/exception-handling-with-statet-vs-readert-ioref}}
+where it would also be possible to preserve the state when encountering an
+exception
+\footnote{\url{http://stackoverflow.com/questions/17645655/exception-handling-with-statet-vs-readert-ioref}}.
+The below example illustrates how the type signatures of an ExceptT outside of a
+StateT allows for preservation of state when encountering an exception.
 
-\textbf{Explain why}
+\begin{verbatim}
+  M :: ExceptT e (StateT s m) r
 
-- Interface with C
-- Reader stack? / Own StateT
-- Implementation of error robust state
+  runExceptT M :: StateT s m (Either e r)
+  runStateT (runExceptT M) :: s -> m (Either e r, s)
 
+  runM :: M -> s -> m (Either e r, s)
+  runM m = runStateT (runExceptT m)
+
+  runExceptT :: ExceptT e m a -> m (Either e a)
+  runStateT  :: StateT s m a -> s -> m (a, s)
+
+\end{verbatim}
 
 \subsection{Monite shell}
 \label{monite}

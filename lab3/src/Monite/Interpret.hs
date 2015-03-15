@@ -120,7 +120,7 @@ evalExp e = case e of
         ss <- evalWrapToStr False w          -- The binary shouldn't have quotes
         sss <- mapM (evalWrapToStr True) ws' -- The arguments should have quotes
         -- Interpret the resulting string as a command
-        interpret (unwords (ss ++ concat sss)) >> return () -- TODO: Unwords? Unlines?
+        interpret (unwords (ss ++ concat sss)) >> return ()
 
 -- | Evaluate a let expression into a list of strings, by running the
 -- expression and splitting the lines in the output into a list.
@@ -138,7 +138,7 @@ evalLetExpToStr e = do
 -- | Evaluate an expression into a list of strings by converting it to a
 -- top-level expression.
 evalExpToStr :: Exp -> MoniteM [String]
-evalExpToStr e = evalLetExpToStr (LLe e) -- TODO: Remove?
+evalExpToStr e = evalLetExpToStr (LLe e)
 
 -- | Convert a Wrap into a list of strings by converting the commands it is
 -- built of to Strings, and any contained '(( ))' will be reinterpreted.

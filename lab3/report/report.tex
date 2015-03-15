@@ -127,7 +127,7 @@ of it). Note: This task is potentially much simpler than the other two. Making a
 good tutorial is enough for a passing grade on this assignment, but is unlikely
 to yield a higher grade.}
 
-The example of how the library can be used is the implementaiton of our shell
+The example of how the library can be used is the implementation of our shell
 Monite. We chose to try and create an interesting application to show the usage
 of haskeline, and in order to get a fairly functional shell working, quite some
 work was required. We thought it would be more interesting to see an actual
@@ -151,7 +151,9 @@ command-line.
 Since we have focused on the completion part of the haskeline project we have
 thoroughly read through both System/Console/Haskeline/Completino.hs, and
 System/Console/Haskeline/Command/Completion.hs, and we have added comments for
-the uncommented functions in the the latter (see diff-haskeline).
+the uncommented functions in the latter (see diff-haskeline). Apart from
+this, we have also looked through the rest of the code to get an overview of
+the structure of the library.
 
 Haskeline provides an easy to use interface. The documentation for this
 interface is good, and we will therefore give a brief summary on how to use it,
@@ -183,14 +185,14 @@ application to his/her liking. For example:
   maxhistorysize: Just 40
 \end{verbatim}
 
-which changes how the interface behaves for the end-user.
+Which changes how the interface behaves for the end-user.
 
 \subsubsection{Interesting techniques}
 Haskeline uses the Haskell Foreign Function Interface (FFI) when interfacing
 with C in order to be able to perform very low level operations on the system.
 For example the System.Console.Haskeline.Directory module make use of FFI in
 order to define some basic system file handling functionality which was not
-available in older versions.
+available in older versions of GHC.
 
 Another interesting technique used is the monad stack in InputT, where
 haskeline make use of Readers with IORefs (which is basically a State) in order
@@ -210,13 +212,21 @@ newtype InputT m a = InputT {unInputT ::
         deriving (Monad, MonadIO, MonadException)
 \end{verbatim}
 
-by having a stack of readers, some of which use IORefs (to simulate a state), the
-monad might be more convenient to work with as they have made it possible to
-use the ask function everywhere in monads of Reader instance.
+By having a stack of readers, some of which use IORefs (to simulate a state),
+the monad might be more convenient to work with as getting any of the
+``variables'' requires only running ask. This is because of the clever way
+typeclasses are used within the library (System/Console/Haskeline/Monads.hs).
+Since monad transformers can ``forward'' their reader capabilities through the
+stack by using lift, the ask function can be used at any level to get any of
+the IORefs in the stack, resulting in a simulated state which is both easy to
+use and resistant to errors.
 
-The magic comes from defining clever instances for the monad transformers in
-haskeline Monads.hs, which allows ask to get any immutable variable in the
-reader stack.
+%they have made it possible to
+%use the ask function everywhere in monads of Reader instance.
+
+%The magic comes from defining clever instances for the monad transformers in
+%haskeline Monads.hs, which allows ask to get any immutable variable in the
+%reader stack.
 
 An alternative stack as we see it would be
 
@@ -309,12 +319,12 @@ Hell is more focused on being a real shell, using shell-conduit to execute
 system binaries and ghc to evaluate haskell expressions that are written at the
 prompt. Like our shell, it uses haskeline for its tab completion and history.
 This shell however, unlike regular shells like bash, is typed, and requires
-writing qoutes for string literals, for example ls ``-l''.
+writing quotes for string literals, for example ls ``-l''.
 
 \textbf{Shelly}
 
 Is also more focused as a scripting language more than an interactive shell,
-and was thus not suitible for our needs.
+and was thus not suitable for our needs.
 
 None of these packages were quite what we were looking for. We wanted
 our own shell to be more bash-like, with some extra features such as list
@@ -330,7 +340,7 @@ createPipe with calls to standard-programs exec and pipe using FFI.
 Monite shell is built using a couple
 of libraries; the major three being: haskeline, BNFC, and process.
 
-Haskeline is used used to provice a rich command-line interface for the
+Haskeline is used used to provide a rich command-line interface for the
 end-user. Monite is customizable to the end-users preferences in the
 configuration file $\mathtt{\sim}$\textit{/.moniterc}. It also provides Monite
 with a history file, and useful completion functions. The end-user can
@@ -482,7 +492,7 @@ some more time)
 
 We knew going in that the undertaking of writing an entire, and useful shell
 during this project would not be feasible. However, we managed to get a working
-shell (albeit limited) up and runnig, and we are pleased with the results.
+shell (albeit limited) up and running, and we are pleased with the results.
 
 \textbf{Techniques and Reflection}
 
@@ -539,13 +549,13 @@ allow the end-user can set his/her own \$PATH.
 3. There is also room for improvements on the completion functions used by
 Monite.  It would be possible to write completion functions for arguments to
 binary commands which looks through the documentation of the command, and prints
-suggestions for what arguments could be given to the command. For exmaple:
+suggestions for what arguments could be given to the command. For example:
 
 \begin{verbatim}
   $> git <Tab>
 \end{verbatim}
 
-could go through the git ducumentation and suggest all possible arguments that
+could go through the git documentation and suggest all possible arguments that
 could be entered.
 
 \textbf{Known Issues}
@@ -646,7 +656,8 @@ Which would correspond to (in zsh):
   for $f in $(ls); do echo $f; done
 \end{verbatim}
 
-Functions (this is by far the hardest part, and may not be feasible for such a small project):
+Functions (this is by far the hardest part, and may not be feasible for such a
+small project):
 
 \begin{verbatim}
   let f n = n + 1 in echo (f 0)

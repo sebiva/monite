@@ -282,15 +282,15 @@ an exception.
   type Y = StateT s (ExceptT e m r)
   y :: Y
 
-  -- runStateT y :: s -> ExceptT e m (r, s)
-  -- runExceptT (runStateT y s) :: m (Either e (a, s))
+  runStateT y :: s -> ExceptT e m (r, s)
+  runExceptT (runStateT y s) :: m (Either e (a, s))
 
   -- Here, we can't have both an error and a state
   runM' :: Y -> s -> m (Either e (a, s))
   runM' y s = runExceptT (runStateT y s)
 \end{verbatim}
 
-\subsection{Monite shell}
+\subsection{The Monite shell}
 \label{monite}
 
 Monite is a shell written in Haskell. During the Feldspar guest lecture we
@@ -332,13 +332,13 @@ comprehensions. We also wanted it to handle the low-level things by itself,
 using the exec - like createProcess function from System.Process rather than
 the more general runCommand, which handles piping and such by itself. This
 choice means it should be possible to replace the calls to createProcess and
-createPipe with calls to standard-programs exec and pipe using FFI.
+createPipe with calls to the standard unix programs exec and pipe using FFI.
 
 
 \subsubsection{Used libraries}
 
-Monite shell is built using a couple
-of libraries; the major three being: haskeline, BNFC, and process.
+The Monite shell is built using a couple of libraries; the major three being:
+haskeline, BNFC, and process.
 
 Haskeline is used used to provide a rich command-line interface for the
 end-user. Monite is customizable to the end-users preferences in the
@@ -351,10 +351,10 @@ file completion from haskeline for tab-completion of the arguments.
 
 BNFC is a parsing library, and is used in Monite to parse a small scripting
 language, which is available to the end-user to enter at the command line. We
-have written our own BNFC grammars, and BNFC can then generate a lexer, and a
-parser from these grammars, which are used to parse the commands entered on the
-command-line in Monite. The abstract syntax tree is then evaluated using our own
-own evaluation functions.
+have written our own BNFC grammars, from which BNFC can then generate a lexer,
+and a parser, which are used to parse the commands entered on the command-line
+in Monite. The abstract syntax tree is then evaluated using our own own
+interpreter.
 
 The process library is used to allow for execution, and handling of binary
 processes such as ls, cat, echo, etc, as well as to create pipes to allow
@@ -377,7 +377,7 @@ generates a parser, Par.hs (along with a lexer and an abstract syntax tree).
 
 We use the createProcess function from the process library to execute binary
 commands, along with their arguments, which are taken as is form the input. In
-order to enable piping, and redirection we keep handles in our state, which are
+order to enable piping and redirection, we keep handles in our state, which are
 sent to createProcess when evaluating CPipe, COut, and CIn commands.
 
 Since everything in the shell is considered a string until proved otherwise, we
@@ -405,11 +405,11 @@ Where a literal is a sequence of characters not in the set:
 
 \textbf{Let expressions}
 
-Let expressions extend the current scope with a new variable of type Lit. If a
-variable is called ``x'', it can be referenced by using ``\$x''.  When using the
-let x = $\dots$ syntax, the variable is set globally, but when the let x =
-$\dots$ in Exp syntax is used, the variable is only available within Exp, and
-deleted afterwards. Example:
+Let expressions extend the current scope with a new variable with a name of
+type Lit. If a variable is called ``x'', it can be referenced by using ``\$x''.
+When using the let x = $\dots$ syntax, the variable is set globally, but when
+the let x = $\dots$ in Exp syntax is used, the variable is only available
+within Exp, and deleted afterwards. Example:
 
 \begin{verbatim}
   let x = 42 ;
@@ -435,7 +435,7 @@ spaces, this could be improved in a more polished version). Example:
 \textbf{List comprehensions}
 
 The list comprehension evaluates the rightmost expression to a list of strings,
-and for each string $s$ in this list, assigns it to the variable $i$ and
+and for each string in this list, assigns it to the variable $i$ and
 evaluates the leftmost expression with $i$ in its context.
 
 \begin{verbatim}
@@ -455,11 +455,12 @@ the commands, for example:
 \textbf{Commands and Wraps}
 
 Commands are the things that are actually executed in the language. A command
-is a list of Text, perhaps combined with pipes and redirects. Since texts can
-contain variables, evaluating a command involves replacing all variables by
-their value and redirecting the input/output according to pipes.
+is a list of Text (Strings or Literals, which may contain variables), perhaps
+combined with pipes and redirects. Since texts can contain variables,
+evaluating a command involves replacing all variables by their value and
+redirecting the input/output according to pipes.
 
-In order to make the language more useful, Wraps were introduce to let the user
+In order to make the language more useful, Wraps were introduced to let the user
 capture the output of a command and use it as a value. As explained earlier,
 anything within ``(())'' should be evaluated before it is used. Since it can
 contain variables that must be replaced by their values, and these values may
@@ -512,7 +513,8 @@ it was enough to run IO-actions within the things we wanted to catch, and IO was
 one of predefined instances. Otherwise we would either have had to create our
 own instance of MonadException which proved to be tricky, change our transformer
 stack to the deprecated ErrorT which would have been a step back, or possibly
-update the monad stack in haskeline with ExceptT instead of ErrorT.
+update the monad stack in haskeline with ExceptT instead of ErrorT, which would
+be quite a large undertaking.
 
 Throughout the project, we noticed that it is hard to nail the grammars for a
 scripting language in the first try. It took some iterations getting the

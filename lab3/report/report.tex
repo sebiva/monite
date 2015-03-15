@@ -97,7 +97,8 @@
 In this part of the assignment we have worked with the library haskeline, chosen
 in Part I, which we have used in an implementation of a shell. We have also
 studied the library, added some documentation, and come up with an idea of how
-it would be possible to improve the completion module in the project.
+it would be possible to improve the one of the mudules in the library, that is,
+the completion module.
 
 \subsection{Task 1 - Writing code}
 
@@ -112,14 +113,14 @@ We have focused on the tab-completion (see Completion.hs) part of haskeline in
 this project, as it is what we sought out to use in our shell implementation. We
 have extended the previous interface in the module
 System.Console.Haskeline.Completion with a new function called listPathFiles,
-which instead of only looking in the directory which the application is executed
-from, looks in a set of supplied directories. In our case, this is used to
+which instead of only looking in the directory from which the application is
+executed , looks in a set of supplied directories. In our case, this is used to
 tab-complete binary commands when written in the shell. We also realized that
 the interface could be further improved by a small compositional language in
 which the application user could build complex completion functions from simple
 completion functions, and in such a way allow easy composition of said
-functions. For a suggestion of such an interface (sadly undefined) see the end
-of the file System/Console/Haskeline/Completion.hs.
+functions. For a suggestion of such an interface (sadly undefined due to time
+limitations) see the end of the file System/Console/Haskeline/Completion.hs.
 
 \textbf{Advanced usage / tutorial}: \textit{Show some examples of what the library can be used
 for. The examples must demonstrate a deep understanding of the library (or part
@@ -130,7 +131,7 @@ to yield a higher grade.}
 The example of how the library can be used is the implementation of our shell
 Monite. We chose to try and create an interesting application to show the usage
 of haskeline, and in order to get a fairly functional shell working, quite some
-work was required. We thought it would be more interesting to see an actual
+work was required. We thought it would be interesting to see an actual
 working application and put in this work in order to get it working properly.
 
 See section \ref{monite} for more information about how the shell works.
@@ -170,8 +171,9 @@ previously entered commands, or simply browse through them.
 Another quite useful setting is the ability to set custom 'completion
 functions', which allows the application programmer to decide in what manner the
 tab completions should be handled. The interface for using these were in our
-case a little cumbersome, and we have made some suggestions on how to improve
-upon this with a compositional interface for completion functions.
+case a little cumbersome to use, and we have made some suggestions on how to
+improve upon this with a compositional interface for completion functions (see
+System/Console/Haskeline/Completion.hs).
 
 \subsubsection{Preferences}
 Haskeline also provides the application programmer with the ability to read
@@ -195,7 +197,7 @@ order to define some basic system file handling functionality which was not
 available in older versions of GHC.
 
 Another interesting technique used is the monad stack in InputT, where
-haskeline make use of Readers with IORefs (which is basically a State) in order
+haskeline make use of Readers with IORefs (which is basically a state) in order
 to prevent state loss when encountering exceptions such as Ctrl-c.
 
 \begin{verbatim}
@@ -228,7 +230,7 @@ use and resistant to errors.
 %haskeline Monads.hs, which allows ask to get any immutable variable in the
 %reader stack.
 
-An alternative stack as we see it would be
+An alternative stack as we see it could be:
 
 \begin{verbatim}
 newtype InputT m a = InputT {unInputT ::
@@ -262,8 +264,8 @@ not that interested in keeping the state of an expression that has gone wrong,
 and therefore use the basic StateT inside of an ExceptT.
 
 The below example illustrates how the type signatures of an ExceptT
-outside/inside of a StateT allows for preservation of state when encountering
-an exception.
+outside/inside of a StateT allows for preservation/non-preservation of state
+when encountering an exception.
 
 \begin{verbatim}
   runExceptT :: ExceptT e m a -> m (Either e a)
@@ -275,7 +277,7 @@ an exception.
   (runExceptT x) :: StateT s m (Either e r)
   (runStateT (runExceptT x)) :: s -> m (Either e r, s)
 
-  -- Here we both the error and the state
+  -- Here we see the error, result and state
   runM :: X -> s -> m (Either e r, s)
   runM x = runStateT (runExceptT x)
 
@@ -283,10 +285,10 @@ an exception.
   y :: Y
 
   runStateT y :: s -> ExceptT e m (r, s)
-  runExceptT (runStateT y s) :: m (Either e (a, s))
+  runExceptT (runStateT y s) :: m (Either e (r, s))
 
-  -- Here, we can't have both an error and a state
-  runM' :: Y -> s -> m (Either e (a, s))
+  -- Here we see either the error, or the (result, state)
+  runM' :: Y -> s -> m (Either e (r, s))
   runM' y s = runExceptT (runStateT y s)
 \end{verbatim}
 
@@ -323,7 +325,7 @@ writing quotes for string literals, for example ls ``-l''.
 
 \textbf{Shelly}
 
-Is also more focused as a scripting language more than an interactive shell,
+Is also more focused as a scripting language rather than an interactive shell,
 and was thus not suitable for our needs.
 
 None of these packages were quite what we were looking for. We wanted
@@ -340,7 +342,7 @@ createPipe with calls to the standard unix programs exec and pipe using FFI.
 The Monite shell is built using a couple of libraries; the major three being:
 haskeline, BNFC, and process.
 
-Haskeline is used used to provide a rich command-line interface for the
+Haskeline is used to provide a rich command-line interface for the
 end-user. Monite is customizable to the end-users preferences in the
 configuration file $\mathtt{\sim}$\textit{/.moniterc}. It also provides Monite
 with a history file, and useful completion functions. The end-user can
@@ -351,9 +353,9 @@ file completion from haskeline for tab-completion of the arguments.
 
 BNFC is a parsing library, and is used in Monite to parse a small scripting
 language, which is available to the end-user to enter at the command line. We
-have written our own BNFC grammars, from which BNFC can then generate a lexer,
-and a parser, which are used to parse the commands entered on the command-line
-in Monite. The abstract syntax tree is then evaluated using our own own
+have written our own BNFC grammars, from which BNFC then generates a lexer, and
+a parser, which are used to parse the commands entered on the command-line in
+Monite. The abstract syntax tree is then evaluated using our own own
 interpreter.
 
 The process library is used to allow for execution, and handling of binary
@@ -419,7 +421,7 @@ within Exp, and deleted afterwards. Example:
 
 Only values can be assigned to variables. This is enforced by using the type
 Wrap, which is either a command (which can be stored as string) or list of
-Wraps within parentheses. These parentheses mean that whats inside it should be
+Wraps within parentheses. These parentheses mean that what is inside it should be
 evaluated before it is stored. Therefore, let x = ls will just store the string
 ``ls'', whereas let x = ((ls)) will store the output of running ls (As of now,
 we don't handle the formatting of the command more than joining the string with
@@ -449,7 +451,7 @@ commands as they are. They can be used within list comprehensions to execute
 the commands, for example:
 
 \begin{verbatim}
-  { $i : i <- [pwd, ls] } ; # Should print the output of first pwd, the ls
+  { $i : i <- [pwd, ls] } ; # Should print the output of first pwd, then ls
 \end{verbatim}
 
 \textbf{Commands and Wraps}
